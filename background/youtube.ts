@@ -288,13 +288,30 @@ export async function searchYouTube(
 }
 
 /**
- * Searches YouTube using Amazon product info
+ * Searches YouTube using Amazon product info with optional AI optimization
  */
 export async function searchYouTubeForProduct(
   title: string,
-  subtitle?: string | null
+  subtitle?: string | null,
+  useAI: boolean = false
 ): Promise<VideoResult[]> {
-  const queries = generateSearchQueries(title, subtitle);
+  let searchTitle = title;
+  
+  // Use Groq AI to optimize title if enabled
+  if (useAI) {
+    try {
+      const { optimizeTitleForYouTube } = await import('../shared/groqClient');
+      searchTitle = await optimizeTitleForYouTube(title, subtitle);
+      console.debug('AI optimized title:', searchTitle);
+    } catch (error) {
+      console.warn('AI optimization failed, using basic normalization:', error);
+    }
+  }
+
+  // Generate search queries with optimized or normalized title
+  const queries = useAI 
+    ? [`${searchTitle} review`, `${searchTitle} unboxing`, `${searchTitle} hands on`]
+    : generateSearchQueries(title, subtitle);
   
   if (queries.length === 0) {
     return [];
@@ -318,48 +335,64 @@ export async function searchYouTubeForProduct(
 
 // Listen for messages from content script or popup
 chrome.runtime.onMessage.addListener((
-  message: { action: string; query?: string; maxResults?: number; bypassCache?: boolean; title?: string; subtitle?: string | null; apiKey?: string },
+  message: { action: string; query?: string; maxResults?: number; bypassCache?: boolean; title?: string; subtitle?: string | null; apiKey?: string; useAI?: boolean },
   _sender: chrome.runtime.MessageSender,
   sendResponse: (response: { success: boolean; data?: VideoResult[]; error?: string }) => void
 ) => {
-  if (message.action === 'searchYouTube') {
-    searchYouTube(message.query || '', message.maxResults, message.bypassCache || false)
-      .then(results => {
+  // Handle async operations
+  (async () => {
+    if (message.action === 'searchYouTube') {
+      try {
+        const results = await searchYouTube(message.query || '', message.maxResults, message.bypassCache || false);
         sendResponse({ success: true, data: results });
-      })
-      .catch(error => {
+      } catch (error) {
         console.error('YouTube search error:', error);
         sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-      });
-    return true; // Keep channel open for async response
-  }
-
-  if (message.action === 'searchYouTubeForProduct') {
-    if (!message.title) {
-      sendResponse({ success: false, error: 'Title is required' });
-      return true;
+      }
+      return;
     }
-    searchYouTubeForProduct(message.title, message.subtitle)
-      .then(results => {
+
+    if (message.action === 'searchYouTubeForProduct') {
+      if (!message.title) {
+        sendResponse({ success: false, error: 'Title is required' });
+        return;
+      }
+      try {
+        const results = await searchYouTubeForProduct(message.title, message.subtitle, message.useAI || false);
         sendResponse({ success: true, data: results });
-      })
-      .catch(error => {
+      } catch (error) {
         console.error('YouTube product search error:', error);
         sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-      });
-    return true;
-  }
-
-  if (message.action === 'setApiKey') {
-    if (!message.apiKey) {
-      sendResponse({ success: false, error: 'API key is required' });
-      return true;
+      }
+      return;
     }
-    setApiKey(message.apiKey);
-    chrome.storage.local.set({ youtubeApiKey: message.apiKey });
-    sendResponse({ success: true });
-    return true;
-  }
 
-  return false;
+    if (message.action === 'setApiKey') {
+      if (!message.apiKey) {
+        sendResponse({ success: false, error: 'API key is required' });
+        return;
+      }
+      setApiKey(message.apiKey);
+      chrome.storage.local.set({ youtubeApiKey: message.apiKey });
+      sendResponse({ success: true });
+      return;
+    }
+
+    if (message.action === 'setGroqApiKey') {
+      const { setGroqApiKey } = await import('../shared/groqClient');
+      if (!message.apiKey) {
+        sendResponse({ success: false, error: 'API key is required' });
+        return;
+      }
+      setGroqApiKey(message.apiKey);
+      chrome.storage.local.set({ groqApiKey: message.apiKey });
+      sendResponse({ success: true });
+      return;
+    }
+  })().catch(error => {
+    console.error('Message handler error:', error);
+    sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+  });
+
+  return true; // Keep channel open for async response
 });

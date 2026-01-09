@@ -1,0 +1,18 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fox head - low poly style -->
+  <polygon points="64,20 45,35 35,50 30,65 35,80 45,95 64,100 83,95 93,80 98,65 93,50 83,35" fill="#FF6B35"/>
+  <polygon points="64,25 50,38 42,52 38,65 42,78 50,92 64,97 78,92 86,78 90,65 86,52 78,38" fill="#FF8C5A"/>
+  <!-- Ears -->
+  <polygon points="50,25 45,15 40,20 42,30" fill="#E55A2B"/>
+  <polygon points="78,25 88,15 88,20 86,30" fill="#E55A2B"/>
+  <!-- Inner ear -->
+  <polygon points="50,25 47,20 45,25 47,28" fill="#FFB88C"/>
+  <polygon points="78,25 81,20 83,25 81,28" fill="#FFB88C"/>
+  <!-- Snout -->
+  <polygon points="64,70 58,75 64,80 70,75" fill="#FFB88C"/>
+  <!-- Triangle mark (play button style) -->
+  <polygon points="64,85 58,90 64,95 70,90" fill="#2C2C2C"/>
+  <!-- Eyes (closed/serene) -->
+  <path d="M 55 50 Q 60 52 65 50" stroke="#2C2C2C" stroke-width="2" fill="none"/>
+  <path d="M 63 50 Q 68 52 73 50" stroke="#2C2C2C" stroke-width="2" fill="none"/>
+</svg>

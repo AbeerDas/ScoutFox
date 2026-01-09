@@ -1,5 +1,6 @@
 /**
  * Main popup UI component for displaying YouTube review results
+ * Redesigned with animations, orange theme, and Material icons
  */
 
 import React, { useState, useEffect } from 'react';
@@ -22,28 +23,61 @@ export default function Popup() {
     productInfo: null,
   });
 
-  const [apiKey, setApiKey] = useState<string>('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [youtubeApiKey, setYoutubeApiKey] = useState<string>('');
+  const [groqApiKey, setGroqApiKey] = useState<string>('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [useAI, setUseAI] = useState(true);
 
-  // Check if API key is set on mount
+  // Load persisted state and API keys on mount
   useEffect(() => {
-    chrome.storage.local.get('youtubeApiKey', (data) => {
+    chrome.storage.local.get(['youtubeApiKey', 'groqApiKey', 'popupState', 'useAI'], (data) => {
       if (data.youtubeApiKey) {
-        setApiKey(data.youtubeApiKey);
-      } else {
-        setShowApiKeyInput(true);
+        setYoutubeApiKey(data.youtubeApiKey);
+      }
+      if (data.groqApiKey) {
+        setGroqApiKey(data.groqApiKey);
+      }
+      if (data.useAI !== undefined) {
+        setUseAI(data.useAI);
+      }
+      // Restore previous state if available
+      if (data.popupState) {
+        try {
+          const savedState = JSON.parse(data.popupState);
+          if (savedState.results && savedState.results.length > 0) {
+            setState(savedState);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+      // Show settings if no API keys
+      if (!data.youtubeApiKey) {
+        setShowSettings(true);
       }
     });
   }, []);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    if (state.results.length > 0 || state.productInfo) {
+      chrome.storage.local.set({ popupState: JSON.stringify(state) });
+    }
+  }, [state]);
 
   const handleSearch = async (bypassCache: boolean = false) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      // Get current tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
-      if (!tab.url || !tab.url.includes('amazon.com')) {
+      // Check for all Amazon domains
+      const amazonDomains = ['amazon.com', 'amazon.ca', 'amazon.co.uk', 'amazon.de', 'amazon.fr', 
+        'amazon.it', 'amazon.es', 'amazon.co.jp', 'amazon.in', 'amazon.com.au', 
+        'amazon.com.br', 'amazon.com.mx', 'amazon.nl', 'amazon.se', 'amazon.pl',
+        'amazon.sg', 'amazon.ae', 'amazon.sa', 'amazon.tr'];
+      
+      if (!tab.url || !amazonDomains.some(domain => tab.url?.includes(domain))) {
         setState(prev => ({
           ...prev,
           loading: false,
@@ -52,7 +86,6 @@ export default function Popup() {
         return;
       }
 
-      // Inject content script if needed and extract product info
       let productInfo: AmazonProductInfo | null = null;
       
       try {
@@ -63,13 +96,11 @@ export default function Popup() {
           throw new Error(response.error || 'Failed to extract product info');
         }
       } catch (error) {
-        // Try injecting script first
         try {
           await chrome.scripting.executeScript({
             target: { tabId: tab.id! },
             files: ['content-scripts/content.js'],
           });
-          // Wait a bit for script to load
           await new Promise(resolve => setTimeout(resolve, 100));
           const response = await chrome.tabs.sendMessage(tab.id!, { action: 'extractProductInfo' }) as { success: boolean; data?: AmazonProductInfo; error?: string };
           if (response.success) {
@@ -93,12 +124,13 @@ export default function Popup() {
 
       setState(prev => ({ ...prev, productInfo }));
 
-      // Search YouTube
+      // Search YouTube with optional AI optimization
       const searchResponse = await chrome.runtime.sendMessage({
         action: 'searchYouTubeForProduct',
         title: productInfo.title,
         subtitle: productInfo.subtitle,
         bypassCache,
+        useAI: useAI && !!groqApiKey,
       }) as { success: boolean; data?: VideoResult[]; error?: string };
 
       if (searchResponse.success) {
@@ -120,20 +152,24 @@ export default function Popup() {
     }
   };
 
-  const handleSetApiKey = async () => {
-    if (!apiKey.trim()) {
-      return;
-    }
-
+  const handleSetYoutubeApiKey = async () => {
+    if (!youtubeApiKey.trim()) return;
     try {
-      await chrome.runtime.sendMessage({
-        action: 'setApiKey',
-        apiKey: apiKey.trim(),
-      });
-      await chrome.storage.local.set({ youtubeApiKey: apiKey.trim() });
-      setShowApiKeyInput(false);
+      await chrome.runtime.sendMessage({ action: 'setApiKey', apiKey: youtubeApiKey.trim() });
+      await chrome.storage.local.set({ youtubeApiKey: youtubeApiKey.trim() });
+      setShowSettings(false);
     } catch (error) {
-      console.error('Failed to set API key:', error);
+      console.error('Failed to set YouTube API key:', error);
+    }
+  };
+
+  const handleSetGroqApiKey = async () => {
+    if (!groqApiKey.trim()) return;
+    try {
+      await chrome.runtime.sendMessage({ action: 'setGroqApiKey', apiKey: groqApiKey.trim() });
+      await chrome.storage.local.set({ groqApiKey: groqApiKey.trim() });
+    } catch (error) {
+      console.error('Failed to set Groq API key:', error);
     }
   };
 
@@ -143,59 +179,75 @@ export default function Popup() {
 
   return (
     <div className="popup-container">
+      {/* Header with logo and settings */}
       <div className="popup-header">
-        <h1 className="popup-title">ScoutFox</h1>
-        <p className="popup-subtitle">Find YouTube Reviews</p>
+        <div className="header-left">
+          <img src={chrome.runtime.getURL('icon.png')} alt="ScoutFox" className="logo-icon" width="32" height="32" />
+          <h1 className="popup-title">ScoutFox</h1>
+        </div>
+        <button className="settings-btn" onClick={() => setShowSettings(!showSettings)}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        </button>
       </div>
 
-      {showApiKeyInput && (
-        <div className="api-key-section">
-          <label className="api-key-label">
-            YouTube API Key:
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="settings-panel">
+          <div className="settings-section">
+            <label className="settings-label">YouTube API Key:</label>
             <input
               type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter your YouTube Data API v3 key"
-              className="api-key-input"
+              value={youtubeApiKey}
+              onChange={(e) => setYoutubeApiKey(e.target.value)}
+              placeholder="Enter YouTube Data API v3 key"
+              className="settings-input"
             />
-          </label>
-          <button onClick={handleSetApiKey} className="btn btn-primary">
-            Save API Key
-          </button>
-          <p className="api-key-hint">
-            Get your API key from{' '}
-            <a
-              href="https://console.cloud.google.com/apis/credentials"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Google Cloud Console
-            </a>
-          </p>
+            <button onClick={handleSetYoutubeApiKey} className="btn-save">Save</button>
+          </div>
+          <div className="settings-section">
+            <label className="settings-label">Groq API Key (for AI optimization):</label>
+            <input
+              type="password"
+              value={groqApiKey}
+              onChange={(e) => setGroqApiKey(e.target.value)}
+              placeholder="Enter Groq API key"
+              className="settings-input"
+            />
+            <button onClick={handleSetGroqApiKey} className="btn-save">Save</button>
+          </div>
+          <div className="settings-section">
+            <label className="settings-checkbox-label">
+              <input
+                type="checkbox"
+                checked={useAI}
+                onChange={(e) => {
+                  setUseAI(e.target.checked);
+                  chrome.storage.local.set({ useAI: e.target.checked });
+                }}
+              />
+              Use AI to optimize search queries
+            </label>
+          </div>
+          <button onClick={() => setShowSettings(false)} className="btn-close-settings">Close</button>
         </div>
       )}
 
-      {!showApiKeyInput && (
+      {/* Search Button */}
+      {!showSettings && (
         <>
-          <div className="actions-section">
-            <button
-              onClick={() => handleSearch(false)}
-              disabled={state.loading}
-              className="btn btn-primary"
-            >
-              {state.loading ? 'Searching...' : 'Search Reviews'}
-            </button>
-            {state.results.length > 0 && (
-              <button
-                onClick={() => handleSearch(true)}
-                disabled={state.loading}
-                className="btn btn-secondary"
-              >
-                Refresh
-              </button>
+          <button
+            onClick={() => handleSearch(false)}
+            disabled={state.loading || !youtubeApiKey}
+            className="btn-search"
+          >
+            {state.loading ? (
+              <span className="loading-spinner"></span>
+            ) : (
+              'Search Reviews'
             )}
-          </div>
+          </button>
 
           {state.productInfo && (
             <div className="product-info">
@@ -209,14 +261,6 @@ export default function Popup() {
           {state.error && (
             <div className="error-message">
               <p>{state.error}</p>
-              {state.error.includes('API key') && (
-                <button
-                  onClick={() => setShowApiKeyInput(true)}
-                  className="btn btn-secondary"
-                >
-                  Update API Key
-                </button>
-              )}
             </div>
           )}
 
@@ -236,11 +280,18 @@ export default function Popup() {
                     className="result-item"
                     onClick={() => openVideo(video.videoId)}
                   >
-                    <img
-                      src={video.thumbnailUrl}
-                      alt={video.title}
-                      className="result-thumbnail"
-                    />
+                    <div className="thumbnail-wrapper">
+                      <img
+                        src={video.thumbnailUrl}
+                        alt={video.title}
+                        className="result-thumbnail"
+                      />
+                      <div className="external-link-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                          <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                        </svg>
+                      </div>
+                    </div>
                     <div className="result-content">
                       <h3 className="result-video-title" title={video.title}>
                         {video.title}
@@ -248,11 +299,17 @@ export default function Popup() {
                       <p className="result-channel">{video.channelTitle}</p>
                       <div className="result-stats">
                         <span className="result-stat">
-                          👁 {formatCount(video.viewCount)}
+                          <svg className="stat-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                          </svg>
+                          {formatCount(video.viewCount)}
                         </span>
                         {video.likeCount !== undefined && (
                           <span className="result-stat">
-                            👍 {formatCount(video.likeCount)}
+                            <svg className="stat-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/>
+                            </svg>
+                            {formatCount(video.likeCount)}
                           </span>
                         )}
                       </div>

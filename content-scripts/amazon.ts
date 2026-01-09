@@ -65,10 +65,10 @@ function extractTitle(): string | null {
 
   // Fallback to page title
   const pageTitle = document.title;
-  if (pageTitle && !pageTitle.includes('Amazon.com')) {
-    // Remove "Amazon.com: " prefix if present
-    const cleaned = pageTitle.replace(/^Amazon\.(com|co\.uk|de|fr|it|es|ca|co\.jp|in|com\.au|com\.br|com\.mx):\s*/i, '').trim();
-    if (cleaned) {
+  if (pageTitle) {
+    // Remove Amazon domain prefixes (all locales)
+    const cleaned = pageTitle.replace(/^Amazon\.(com|ca|co\.uk|de|fr|it|es|co\.jp|in|com\.au|com\.br|com\.mx|nl|se|pl|sg|ae|sa|tr):\s*/i, '').trim();
+    if (cleaned && !cleaned.toLowerCase().includes('amazon')) {
       return sanitizeText(cleaned);
     }
   }
