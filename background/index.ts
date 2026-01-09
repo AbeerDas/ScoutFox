@@ -3,5 +3,6 @@
  */
 
 import './youtube';
+import './amazon';
 
 console.log('ScoutFox background service worker initialized');

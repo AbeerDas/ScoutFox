@@ -3,11 +3,13 @@ import "wxt/browser";
 
 declare module "wxt/browser" {
   export type PublicPath =
+    | "/FoxLogo.png"
     | "/background.js"
     | "/content-scripts/content.js"
-    | "/icon.png"
     | "/icon.svg"
     | "/popup.html"
+    | "/settings.html"
+    | "/youtube.js"
   type HtmlPublicPath = Extract<PublicPath, `${string}.html`>
   export interface WxtRuntime extends Runtime.Static {
     getURL(path: PublicPath): string;

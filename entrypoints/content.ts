@@ -29,6 +29,6 @@ export default defineContentScript({
     '*://*.amazon.tr/*',
   ],
   main() {
-    // Content script is imported above and will run automatically
+    // Content scripts are imported above and will run automatically
   },
 });

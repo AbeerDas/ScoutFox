@@ -1,15 +1,7 @@
 /**
- * Product information extracted from Amazon page
+ * Shared TypeScript types for ScoutFox extension
  */
-export interface AmazonProductInfo {
-  title: string | null;
-  subtitle: string | null;
-  asin?: string;
-}
 
-/**
- * YouTube video result from API
- */
 export interface VideoResult {
   videoId: string;
   title: string;
@@ -20,19 +12,38 @@ export interface VideoResult {
   publishedAt: string;
 }
 
-/**
- * Cache entry structure
- */
 export interface CacheEntry {
   results: VideoResult[];
   fetchedAt: number;
 }
 
-/**
- * YouTube API configuration
- */
 export interface YouTubeConfig {
   apiKey: string;
-  cacheTTL?: number; // in milliseconds, default 24 hours
-  maxResults?: number; // default 6
+  maxResults: number;
+  cacheTTL: number;
+}
+
+export interface AmazonProductInfo {
+  title: string | null;
+  subtitle: string | null;
+  asin: string | null;
+}
+
+export interface GroqConfig {
+  apiKey: string;
+}
+
+// YouTube → Amazon types
+export interface YouTubePageContext {
+  videoTitle: string | null;
+  description: string | null;
+  channelName: string | null;
+  documentTitle: string | null;
+  rawTextBlob: string;
+}
+
+export interface LLMExtractionResult {
+  productName: string | null;
+  confidence: number;
+  rationale?: string;
 }

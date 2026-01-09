@@ -5,12 +5,21 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   manifest: {
     name: 'ScoutFox - Amazon to YouTube Reviews',
-    description: 'Find YouTube reviews for Amazon products',
+    description: 'Find YouTube reviews for Amazon products and search Amazon from YouTube',
     permissions: ['storage', 'activeTab', 'scripting', 'tabs'],
+    commands: {
+      'open-popup': {
+        suggested_key: {
+          default: 'Ctrl+M',
+          mac: 'Command+M',
+        },
+        description: 'Open ScoutFox popup',
+      },
+    },
     icons: {
-      '16': 'icon.png',
-      '48': 'icon.png',
-      '128': 'icon.png',
+      '16': 'FoxLogo.png',
+      '48': 'FoxLogo.png',
+      '128': 'FoxLogo.png',
     },
     host_permissions: [
       '*://*.amazon.com/*',

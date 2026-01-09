@@ -120,6 +120,96 @@ export function extractAmazonProductText(): AmazonProductInfo {
   };
 }
 
+// Make it available globally for sidebar.tsx
+(window as any).extractAmazonProductText = extractAmazonProductText;
+
+// Auto-detect product pages and trigger search
+let lastASIN: string | null = null;
+let searchDebounceTimer: number | null = null;
+
+function detectAndSearch() {
+  // Clear any pending search
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+  }
+
+  searchDebounceTimer = window.setTimeout(() => {
+    try {
+      const productInfo = extractAmazonProductText();
+      const currentASIN = productInfo.asin || extractASINFromURL();
+      
+      if (currentASIN && currentASIN !== lastASIN && productInfo.title) {
+        lastASIN = currentASIN;
+        
+        // Notify background to search
+        chrome.runtime.sendMessage({
+          type: 'AMAZON_PRODUCT_DETECTED',
+          asin: currentASIN,
+          title: productInfo.title,
+          subtitle: productInfo.subtitle,
+        }).catch(err => {
+          console.debug('ScoutFox: Error sending product detection message', err);
+        });
+      }
+    } catch (error) {
+      console.debug('ScoutFox: Error in detectAndSearch', error);
+    }
+  }, 800);
+}
+
+function extractASINFromURL(): string | null {
+  try {
+    const match = window.location.href.match(/\/(dp|gp\/product)\/([A-Z0-9]{10})/);
+    return match ? match[2] : null;
+  } catch {
+    return null;
+  }
+}
+
+// Initial detection - wait for page to be ready
+function initDetection() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(detectAndSearch, 1000);
+    });
+  } else {
+    setTimeout(detectAndSearch, 1000);
+  }
+}
+
+initDetection();
+
+// Watch for DOM changes (Amazon is SPA) - but debounce heavily
+let domObserver: MutationObserver | null = null;
+if (document.body) {
+  domObserver = new MutationObserver(() => {
+    detectAndSearch();
+  });
+
+  domObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+// Watch for URL changes
+let lastUrl = location.href;
+const urlObserver = new MutationObserver(() => {
+  const url = location.href;
+  if (url !== lastUrl) {
+    lastUrl = url;
+    lastASIN = null; // Reset ASIN on URL change
+    detectAndSearch();
+  }
+});
+
+urlObserver.observe(document, { subtree: true, childList: true });
+
+window.addEventListener('popstate', () => {
+  lastASIN = null;
+  detectAndSearch();
+});
+
 // Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((
   message: { action: string },

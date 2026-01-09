@@ -389,6 +389,65 @@ chrome.runtime.onMessage.addListener((
       sendResponse({ success: true });
       return;
     }
+
+    // Handle auto-detection from content script
+    if (message.type === 'AMAZON_PRODUCT_DETECTED') {
+      const { title, subtitle, asin } = message;
+      const tabId = _sender.tab?.id;
+      
+      if (!tabId) return;
+
+      // Check cache first
+      const cacheKey = `auto_search_${asin}`;
+      const cached = await chrome.storage.local.get(cacheKey);
+      
+      if (cached[cacheKey]) {
+        const entry = cached[cacheKey];
+        const age = Date.now() - entry.fetchedAt;
+        if (age < 24 * 60 * 60 * 1000) {
+          // Send cached results to content script
+          chrome.tabs.sendMessage(tabId, {
+            type: 'YOUTUBE_RESULTS_READY',
+            results: entry.results,
+            productInfo: { title, subtitle, asin },
+          }).catch(() => {});
+          return;
+        }
+      }
+
+      // Notify content script that search started
+      chrome.tabs.sendMessage(tabId, {
+        type: 'YOUTUBE_SEARCH_STARTED',
+      }).catch(() => {});
+
+      // Perform search
+      try {
+        const { getGroqApiKey } = await import('../shared/groqClient');
+        const groqKey = await getGroqApiKey();
+        const results = await searchYouTubeForProduct(title, subtitle, !!groqKey);
+        
+        // Cache results
+        await chrome.storage.local.set({
+          [cacheKey]: {
+            results,
+            fetchedAt: Date.now(),
+          },
+        });
+
+        // Send results to content script
+        chrome.tabs.sendMessage(tabId, {
+          type: 'YOUTUBE_RESULTS_READY',
+          results,
+          productInfo: { title, subtitle, asin },
+        }).catch(() => {});
+      } catch (error) {
+        chrome.tabs.sendMessage(tabId, {
+          type: 'YOUTUBE_SEARCH_ERROR',
+          error: error instanceof Error ? error.message : 'Search failed',
+        }).catch(() => {});
+      }
+      return;
+    }
   })().catch(error => {
     console.error('Message handler error:', error);
     sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });

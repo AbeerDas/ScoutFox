@@ -27,6 +27,7 @@ export default function Popup() {
   const [groqApiKey, setGroqApiKey] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
   const [useAI, setUseAI] = useState(true);
+  const [sortBy, setSortBy] = useState<'likes' | 'views'>('views');
 
   // Load persisted state and API keys on mount
   useEffect(() => {
@@ -182,14 +183,47 @@ export default function Popup() {
       {/* Header with logo and settings */}
       <div className="popup-header">
         <div className="header-left">
-          <img src={chrome.runtime.getURL('icon.png')} alt="ScoutFox" className="logo-icon" width="32" height="32" />
-          <h1 className="popup-title">ScoutFox</h1>
+          <div 
+            className={showSettings ? "logo-link clickable" : "logo-link"} 
+            onClick={showSettings ? () => setShowSettings(false) : undefined}
+            style={showSettings ? { cursor: 'pointer' } : {}}
+          >
+            <img src={chrome.runtime.getURL('FoxLogo.png')} alt="ScoutFox" className="logo-icon" width="32" height="32" />
+          </div>
+          <h1 
+            className="popup-title"
+            onClick={showSettings ? () => setShowSettings(false) : undefined}
+            style={showSettings ? { cursor: 'pointer' } : {}}
+          >
+            ScoutFox
+          </h1>
         </div>
-        <button className="settings-btn" onClick={() => setShowSettings(!showSettings)}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
-        </button>
+        <div className="header-right">
+          <button 
+            className="mail-btn" 
+            onClick={() => {
+              const subject = encodeURIComponent('ScoutFox Support');
+              const body = encodeURIComponent('Hello,\n\n');
+              window.open(`mailto:abeerdas647@gmail.com?subject=${subject}&body=${body}`, '_blank');
+            }}
+            title="Contact Support"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            </svg>
+          </button>
+          <button 
+            className="settings-btn" 
+            onClick={() => {
+              chrome.tabs.create({ url: chrome.runtime.getURL('settings.html') });
+            }}
+            title="Settings"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Settings Panel */}
@@ -267,14 +301,43 @@ export default function Popup() {
           {state.loading && (
             <div className="loading">
               <p>Searching YouTube for reviews...</p>
+              <div className="loading-progress">
+                <div className="loading-progress-bar"></div>
+              </div>
             </div>
           )}
 
           {!state.loading && state.results.length > 0 && (
             <div className="results-section">
-              <h2 className="results-title">Found {state.results.length} Review{state.results.length !== 1 ? 's' : ''}</h2>
+              <div className="results-header">
+                <div className="sort-toggle">
+                  <button
+                    className={`sort-btn ${sortBy === 'likes' ? 'active' : ''}`}
+                    onClick={() => setSortBy('likes')}
+                  >
+                    Likes
+                  </button>
+                  <button
+                    className={`sort-btn ${sortBy === 'views' ? 'active' : ''}`}
+                    onClick={() => setSortBy('views')}
+                  >
+                    Views
+                  </button>
+                </div>
+                <h2 className="results-title">Found {state.results.length} Review{state.results.length !== 1 ? 's' : ''}</h2>
+              </div>
               <div className="results-list">
-                {state.results.map((video) => (
+                {[...state.results]
+                  .sort((a, b) => {
+                    if (sortBy === 'likes') {
+                      const aLikes = a.likeCount || 0;
+                      const bLikes = b.likeCount || 0;
+                      return bLikes - aLikes;
+                    } else {
+                      return b.viewCount - a.viewCount;
+                    }
+                  })
+                  .map((video) => (
                   <div
                     key={video.videoId}
                     className="result-item"
