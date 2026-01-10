@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScoutFox Privacy Policy</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 40px 20px;
+      line-height: 1.4;
+      color: #333;
+      font-size: 18px;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 900px;
+      margin: 0 auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .header-sticky {
+      position: sticky;
+      top: 0;
+      background: white;
+      padding: 20px 0 12px 0;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e5e7eb;
+      z-index: 10;
+    }
+    h1 {
+      color: #FF6B35;
+      font-size: 36px;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .effective-date {
+      color: #6b7280;
+      font-size: 16px;
+      margin-bottom: 12px;
+      font-style: italic;
+    }
+    h2 {
+      color: #1f2937;
+      font-size: 26px;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-weight: 600;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 6px;
+    }
+    h3 {
+      color: #374151;
+      font-size: 20px;
+      margin-top: 16px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    p {
+      margin-bottom: 10px;
+      color: #4b5563;
+    }
+    ul, ol {
+      margin-left: 24px;
+      margin-bottom: 10px;
+      color: #4b5563;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+    strong {
+      color: #1f2937;
+      font-weight: 600;
+    }
+    a {
+      color: #FF6B35;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .contact-info {
+      border-left: 4px solid #FF6B35;
+      padding-left: 12px;
+      margin: 10px 0;
+    }
+    .note {
+      border-left: 4px solid #f59e0b;
+      padding-left: 12px;
+      margin: 10px 0;
+      font-style: italic;
+    }
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #e5e7eb;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-sticky">
+      <h1>ScoutFox Privacy Policy</h1>
+      <p class="effective-date"><strong>Effective Date:</strong> [Date]</p>
+    </div>
+
+    <p>This Privacy Policy describes ScoutFox's information practices for its Chrome browser extension. We take your privacy seriously and want you to understand exactly what information we collect, how we process that information, and how to contact us about this policy. Please read this policy carefully.</p>
+
+    <h2>Who is Responsible for Data Collection and Processing?</h2>
+
+    <h3>Controller</h3>
+
+    <p>The legal person responsible for the collection, processing and/or use of personal information in connection with ScoutFox ("Controller") is:</p>
+
+    <div class="contact-info">
+      <p><strong>Abeer Das</strong><br>
+      abeerdas647@gmail.com</p>
+    </div>
+
+    <h2>What is Personal Information?</h2>
+
+    <p>Personal information means any information relating to an identified or identifiable natural person. This includes details such as name and email address, but also information that could be used to identify you indirectly, such as browsing patterns or device identifiers.</p>
+
+    <h2>Information ScoutFox Collects</h2>
+
+    <h3>Data Processed Locally (Never Sent to Servers)</h3>
+
+    <p>The following data is processed entirely within your browser and never transmitted:</p>
+
+    <ul>
+      <li><strong>Cached Search Results</strong>: YouTube video search results are stored locally in your browser for 24 hours to improve performance and reduce API calls</li>
+      <li><strong>User Preferences</strong>: Your API key preferences and search settings (stored in Chrome's local storage)</li>
+      <li><strong>Extension State</strong>: Temporary state information to restore your previous search results when reopening the extension</li>
+    </ul>
+
+    <h3>Data Extracted from Web Pages</h3>
+
+    <p>When you use ScoutFox, the extension extracts publicly visible information from web pages you visit:</p>
+
+    <p><strong>From Amazon Product Pages:</strong></p>
+    <ul>
+      <li>Product title (e.g., "Echo Dot (5th Gen)")</li>
+      <li>Product subtitle/description</li>
+      <li>ASIN (Amazon Standard Identification Number)</li>
+      <li>Current page URL (to identify product pages)</li>
+    </ul>
+
+    <p><strong>From YouTube Video Pages:</strong></p>
+    <ul>
+      <li>Video title</li>
+      <li>Video description</li>
+      <li>Channel name</li>
+      <li>Public metadata (Open Graph tags, keywords)</li>
+    </ul>
+
+    <div class="note">
+      <p><strong>Important</strong>: This extraction only occurs when you explicitly interact with the extension (clicking the extension icon or the "Search for Products" button). The extension does not automatically collect data in the background.</p>
+    </div>
+
+    <h3>Data Transmitted to Our Backend Service</h3>
+
+    <p>When you use ScoutFox's core functionality, the following data is sent to our backend service hosted on Vercel (<code>yt-amazon-backend-proxy.vercel.app</code>):</p>
+
+    <p><strong>For Amazon → YouTube Search:</strong></p>
+    <ul>
+      <li>Product title and subtitle (to search YouTube for review videos)</li>
+      <li>Optimization preference (whether to use AI for query optimization)</li>
+    </ul>
+
+    <p><strong>For YouTube → Amazon Search:</strong></p>
+    <ul>
+      <li>Video title</li>
+      <li>Video description</li>
+      <li>Channel name</li>
+      <li>Page metadata (to extract product name using AI)</li>
+    </ul>
+
+    <p><strong>Purpose</strong>: This data is used solely to:</p>
+    <ol>
+      <li>Search YouTube for product review videos (Amazon → YouTube)</li>
+      <li>Extract product names from YouTube videos using AI/LLM processing (YouTube → Amazon)</li>
+      <li>Generate optimized search queries</li>
+    </ol>
+
+    <p><strong>Data Processing</strong>: Our backend uses an AI language model (LLM) to analyze YouTube video content and infer the most likely physical product being discussed. The AI output is used only to generate an Amazon search query. The AI does not make decisions about you, does not profile you, and does not store your data.</p>
+
+    <h3>Data Transmitted to Third-Party APIs (Optional)</h3>
+
+    <p>If you choose to provide your own API keys in the extension settings:</p>
+
+    <p><strong>Groq API</strong> (<code>api.groq.com</code>):</p>
+    <ul>
+      <li>Product titles (for AI-powered search query optimization)</li>
+      <li>Only used if you enable AI optimization and provide your own Groq API key</li>
+    </ul>
+
+    <p><strong>YouTube Data API</strong> (<code>www.googleapis.com</code>):</p>
+    <ul>
+      <li>Search queries (to find YouTube videos)</li>
+      <li>Only used if you provide your own YouTube API key</li>
+    </ul>
+
+    <div class="note">
+      <p><strong>Important</strong>: If you use our backend service (default), all API calls are proxied through our servers using our API keys. Your data is never sent directly to third-party APIs unless you explicitly provide your own API keys.</p>
+    </div>
+
+    <h3>Information We Do NOT Collect</h3>
+
+    <p>ScoutFox does <strong>not</strong> collect, store, or transmit:</p>
+
+    <ul>
+      <li>Personal identifiers (name, email, address, phone number)</li>
+      <li>Browsing history (beyond the current page you're viewing)</li>
+      <li>Account credentials or passwords</li>
+      <li>Payment information</li>
+      <li>Location data</li>
+      <li>Device identifiers (beyond what Chrome automatically provides)</li>
+      <li>Analytics or telemetry data</li>
+      <li>User tracking data</li>
+      <li>Advertising identifiers</li>
+      <li>Any data from pages other than Amazon product pages and YouTube video pages</li>
+    </ul>
+
+    <h2>How ScoutFox Processes and Uses Collected Information</h2>
+
+    <h3>Core Functionality</h3>
+
+    <p><strong>Amazon → YouTube Search:</strong></p>
+    <ol>
+      <li>You visit an Amazon product page and click the ScoutFox extension icon</li>
+      <li>We extract the product title and subtitle from the page</li>
+      <li>We send this information to our backend service (or use your API key if provided)</li>
+      <li>Our backend searches YouTube for review videos matching the product</li>
+      <li>Results are displayed in the extension popup</li>
+      <li>Results are cached locally for 24 hours</li>
+    </ol>
+
+    <p><strong>YouTube → Amazon Search:</strong></p>
+    <ol>
+      <li>You visit a YouTube video page and click the "Search for Products" button</li>
+      <li>We extract video title, description, and metadata from the page</li>
+      <li>We send this information to our backend service</li>
+      <li>Our backend uses an AI language model to analyze the content and infer the product name</li>
+      <li>An Amazon search URL is generated and opened in a new tab</li>
+      <li>No data is stored server-side after the search is completed</li>
+    </ol>
+
+    <h3>AI/LLM Processing Disclosure</h3>
+
+    <p>ScoutFox uses an AI language model (LLM) hosted on our backend servers to:</p>
+
+    <ul>
+      <li><strong>Analyze YouTube video content</strong> (title, description, metadata) to identify the product being discussed</li>
+      <li><strong>Generate optimized search queries</strong> for YouTube searches (if AI optimization is enabled)</li>
+    </ul>
+
+    <p><strong>What the AI Does:</strong></p>
+    <ul>
+      <li>Reads publicly visible video information</li>
+      <li>Identifies product names, brands, and model numbers</li>
+      <li>Generates search queries</li>
+    </ul>
+
+    <p><strong>What the AI Does NOT Do:</strong></p>
+    <ul>
+      <li>Make decisions about you</li>
+      <li>Create profiles of you</li>
+      <li>Store your data</li>
+      <li>Share your data with third parties</li>
+      <li>Use your data for training or improvement of AI models</li>
+    </ul>
+
+    <p><strong>AI Output</strong>: The AI's output (product name or search query) is used immediately to generate a search URL and is not intentionally stored or retained beyond what is technically necessary to complete the request.</p>
+
+    <h3>Data Retention</h3>
+
+    <ul>
+      <li><strong>Backend Processing</strong>: Data sent to our backend is processed in real-time and not intentionally stored or retained beyond what is technically necessary to complete the request</li>
+      <li><strong>Local Storage</strong>: Cached search results are stored locally in your browser for 24 hours, then automatically cleared</li>
+      <li><strong>API Keys</strong>: If you provide your own API keys, they are stored locally in your browser until you delete them</li>
+      <li><strong>No Server-Side Storage</strong>: We do not maintain databases or logs of your searches, product information, or video content</li>
+    </ul>
+
+    <h2>Data Sharing and Third Parties</h2>
+
+    <h3>Our Backend Service (Vercel)</h3>
+
+    <p>ScoutFox uses Vercel (Vercel Inc.) to host our backend API service. When data is sent to our backend:</p>
+
+    <ul>
+      <li><strong>Purpose</strong>: Processing searches and AI/LLM analysis</li>
+      <li><strong>Data Shared</strong>: Product titles, video titles, descriptions, and metadata (as described above)</li>
+      <li><strong>Vercel's Role</strong>: Infrastructure provider only - they do not access, use, or store your data</li>
+      <li><strong>Vercel Privacy Policy</strong>: <a href="https://vercel.com/legal/privacy-policy" target="_blank">https://vercel.com/legal/privacy-policy</a></li>
+    </ul>
+
+    <h3>AI/LLM Service (Groq)</h3>
+
+    <p>If you provide your own Groq API key, your product titles are sent directly to Groq's API for AI optimization. If you use our backend service, we use our own Groq API key and your data is proxied through our servers.</p>
+
+    <ul>
+      <li><strong>Groq Privacy Policy</strong>: <a href="https://groq.com/legal/privacy" target="_blank">https://groq.com/legal/privacy</a></li>
+    </ul>
+
+    <h3>YouTube Data API (Google)</h3>
+
+    <p>If you provide your own YouTube API key, your search queries are sent directly to Google's YouTube Data API. If you use our backend service, we use our own YouTube API key and your data is proxied through our servers.</p>
+
+    <ul>
+      <li><strong>Google Privacy Policy</strong>: <a href="https://policies.google.com/privacy" target="_blank">https://policies.google.com/privacy</a></li>
+    </ul>
+
+    <h3>No Data Sales or Advertising</h3>
+
+    <p>ScoutFox <strong>never</strong> sells, rents, or shares your personal information or browsing data with:</p>
+
+    <ul>
+      <li>Advertisers</li>
+      <li>Data brokers</li>
+      <li>Marketing companies</li>
+      <li>Analytics services (beyond what's necessary for core functionality)</li>
+      <li>Any third party for commercial purposes</li>
+    </ul>
+
+    <h3>Legal Requirements</h3>
+
+    <p>ScoutFox may disclose information if required by law, court order, or government regulation. We will notify you of such requests when legally permitted to do so.</p>
+
+    <h2>Data Security</h2>
+
+    <h3>Local Storage Security</h3>
+
+    <ul>
+      <li>All data stored locally in your browser is protected by Chrome's extension storage mechanisms and access controls</li>
+      <li>API keys are stored in Chrome's secure local storage</li>
+      <li>You can clear all data at any time via Chrome settings</li>
+    </ul>
+
+    <h3>Transmission Security</h3>
+
+    <ul>
+      <li>All data transmitted to our backend uses HTTPS encryption</li>
+      <li>All API calls use secure, encrypted connections</li>
+      <li>API keys are never exposed in network requests (all proxied through backend)</li>
+    </ul>
+
+    <h3>Server-Side Security</h3>
+
+    <ul>
+      <li>Our backend servers use industry-standard security measures</li>
+      <li>API keys are stored securely on our servers and never exposed to clients</li>
+      <li>Data is processed in real-time and not intentionally stored or retained beyond what is technically necessary to complete the request</li>
+      <li>Access to backend infrastructure is restricted and monitored</li>
+    </ul>
+
+    <div class="note">
+      <p><strong>Important</strong>: While we take reasonable steps to secure your data, no system is 100% secure. You use ScoutFox at your own risk.</p>
+    </div>
+
+    <h2>User Control and Consent</h2>
+
+    <h3>How You Control Data Collection</h3>
+
+    <p>ScoutFox only processes data when you explicitly take action:</p>
+
+    <ol>
+      <li><strong>Amazon → YouTube</strong>: Click the extension icon and click "Search Reviews"</li>
+      <li><strong>YouTube → Amazon</strong>: Click the "Search for Products" button on a YouTube video page</li>
+    </ol>
+
+    <p>The extension does <strong>not</strong> automatically collect or process data in the background. All data processing is initiated by your explicit actions.</p>
+
+    <p>By initiating these actions, you provide consent for the described data processing to occur.</p>
+
+    <h3>Your Choices</h3>
+
+    <p>You have full control over:</p>
+
+    <ul>
+      <li><strong>Using Your Own API Keys</strong>: Provide your own API keys in settings to avoid using our backend service</li>
+      <li><strong>Disabling AI Optimization</strong>: Turn off AI optimization in settings</li>
+      <li><strong>Clearing Data</strong>: Clear all cached data and API keys at any time</li>
+      <li><strong>Uninstalling</strong>: Uninstall the extension at any time to remove all data</li>
+    </ul>
+
+    <h3>How to Clear Your Data</h3>
+
+    <p><strong>1. Via Chrome Settings:</strong></p>
+    <ul>
+      <li>Go to <code>chrome://extensions/</code></li>
+      <li>Find ScoutFox</li>
+      <li>Click "Remove" to uninstall (this clears all data)</li>
+    </ul>
+
+    <p><strong>2. Via Extension Storage</strong> (Advanced):</p>
+    <ul>
+      <li>Open Chrome DevTools</li>
+      <li>Go to Application → Storage → Extension → ScoutFox</li>
+      <li>Clear all stored data</li>
+    </ul>
+
+    <h2>Children's Privacy</h2>
+
+    <p>ScoutFox is not intended for children. We do not knowingly collect personal data from individuals under the age required for consent under applicable law (13 in the United States, and up to 16 in certain EU countries). If you believe we have inadvertently collected information from a child, please contact us immediately at abeerdas647@gmail.com and we will delete it promptly.</p>
+
+    <h2>Your Rights (GDPR and CCPA Compliance)</h2>
+
+    <p>If you are located in the European Economic Area (EEA) or California, you have the following rights:</p>
+
+    <h3>Right to Access</h3>
+
+    <p>You have the right to request information about what data we have collected about you. Since ScoutFox stores data locally in your browser, you can access it directly via Chrome DevTools.</p>
+
+    <h3>Right to Rectification</h3>
+
+    <p>You can correct or update your API keys and preferences at any time in the extension settings.</p>
+
+    <h3>Right to Erasure</h3>
+
+    <p>You can delete all data by uninstalling the extension or clearing Chrome's extension storage.</p>
+
+    <h3>Right to Data Portability</h3>
+
+    <p>You can export your cached search results and preferences via Chrome DevTools if needed.</p>
+
+    <h3>Right to Object</h3>
+
+    <p>You can stop using ScoutFox at any time by uninstalling the extension. Since we don't track you or store your data, uninstalling removes all traces.</p>
+
+    <h3>Right to Withdraw Consent</h3>
+
+    <p>You can withdraw consent by uninstalling the extension or disabling it in Chrome settings.</p>
+
+    <h3>How to Exercise Your Rights</h3>
+
+    <p>To exercise any of these rights, please contact us at abeerdas647@gmail.com. Since most data is stored locally in your browser, you can also exercise many of these rights directly by clearing your browser data or uninstalling the extension.</p>
+
+    <h2>Policy Updates</h2>
+
+    <p>ScoutFox reserves the right to update this Privacy Policy from time to time. When we make changes:</p>
+
+    <ul>
+      <li>We will update the "Effective Date" at the top of this page</li>
+      <li>For substantial changes, we will notify users through the extension or via email (if you have provided your email)</li>
+      <li>Your continued use of ScoutFox after changes constitutes acceptance of the updated policy</li>
+    </ul>
+
+    <h2>Contact</h2>
+
+    <p>If you have questions, concerns, or requests regarding this Privacy Policy or ScoutFox's data practices, please contact us at:</p>
+
+    <div class="contact-info">
+      <p><strong>Email</strong>: abeerdas647@gmail.com</p>
+    </div>
+
+    <p>We will respond to your inquiry within a reasonable timeframe.</p>
+
+    <h2>Compliance</h2>
+
+    <p>This Privacy Policy is designed to comply with:</p>
+
+    <ul>
+      <li>Chrome Web Store Developer Program Policies</li>
+      <li>General Data Protection Regulation (GDPR)</li>
+      <li>California Consumer Privacy Act (CCPA)</li>
+      <li>Children's Online Privacy Protection Act (COPPA)</li>
+    </ul>
+
+    <h2>Legal Basis for Processing (GDPR)</h2>
+
+    <p>We process data based on:</p>
+
+    <ul>
+      <li><strong>User consent</strong> (Article 6(1)(a)) when you initiate searches</li>
+      <li><strong>Legitimate interest</strong> (Article 6(1)(f)) in providing the extension's core functionality</li>
+    </ul>
+
+    <hr>
+
+    <div class="note">
+      <p><strong>Note</strong>: By using ScoutFox, you acknowledge that you have read and understood this Privacy Policy. If you do not agree, please do not use the extension.</p>
+    </div>
+  </div>
+</body>
+</html>

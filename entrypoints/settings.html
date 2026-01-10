@@ -339,6 +339,23 @@
       width: 32px;
       height: 32px;
     }
+    .privacy-link {
+      text-align: center;
+      margin: 20px 0 0 0;
+      padding-top: 12px;
+      padding-bottom: 0;
+      border-top: 1px solid #e5e7eb;
+    }
+    .privacy-link a {
+      color: #9ca3af;
+      text-decoration: none;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .privacy-link a:hover {
+      color: #FF6B35;
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -352,7 +369,7 @@
     <!-- Backend Status -->
     <div id="backend-status-card" class="backend-status-card checking">
       <div class="status-header">
-        <div class="status-icon checking">
+        <div class="status-icon checking" id="backend-status-icon">
           <svg viewBox="0 0 24 24">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
           </svg>
@@ -464,6 +481,10 @@
         </div>
         <button class="btn" id="save-groq">Save Groq API Key</button>
       </div>
+    </div>
+
+    <div class="privacy-link">
+      <a href="#" id="privacy-policy-link">Privacy Policy</a>
     </div>
   </div>
 

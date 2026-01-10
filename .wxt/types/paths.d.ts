@@ -8,6 +8,7 @@ declare module "wxt/browser" {
     | "/content-scripts/content.js"
     | "/icon.svg"
     | "/popup.html"
+    | "/privacy.html"
     | "/settings.html"
     | "/youtube.js"
   type HtmlPublicPath = Extract<PublicPath, `${string}.html`>

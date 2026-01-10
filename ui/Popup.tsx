@@ -165,6 +165,19 @@ export default function Popup() {
             }
           } else {
             setDetectedProduct(null);
+            
+            // Auto-search on Amazon pages when extension opens
+            const amazonDomains = ['amazon.com', 'amazon.ca', 'amazon.co.uk', 'amazon.de', 'amazon.fr', 
+              'amazon.it', 'amazon.es', 'amazon.co.jp', 'amazon.in', 'amazon.com.au', 
+              'amazon.com.br', 'amazon.com.mx', 'amazon.nl', 'amazon.se', 'amazon.pl',
+              'amazon.sg', 'amazon.ae', 'amazon.sa', 'amazon.tr'];
+            
+            if (tab.url && amazonDomains.some(domain => tab.url!.toLowerCase().includes(domain))) {
+              // Auto-trigger search on Amazon pages
+              setTimeout(() => {
+                handleSearch(false);
+              }, 300);
+            }
           }
         }
       } catch (error) {
@@ -172,6 +185,7 @@ export default function Popup() {
       }
     };
     checkPageTypeAndDetect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = async (bypassCache: boolean = false) => {
@@ -416,7 +430,7 @@ export default function Popup() {
   };
 
   return (
-    <div className="popup-container">
+    <div className={`popup-container ${state.results.length > 0 ? 'has-results' : ''}`}>
       {/* Header with logo and settings */}
       <div className="popup-header">
         <div className="header-left">
@@ -445,7 +459,7 @@ export default function Popup() {
             }}
             title="Contact Support"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
             </svg>
           </button>
@@ -456,8 +470,19 @@ export default function Popup() {
             }}
             title="Settings"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+          <button 
+            className="privacy-btn" 
+            onClick={() => {
+              chrome.tabs.create({ url: chrome.runtime.getURL('privacy.html') });
+            }}
+            title="Privacy Policy"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
             </svg>
           </button>
         </div>
@@ -597,16 +622,16 @@ export default function Popup() {
               <div className="results-header">
                 <div className="sort-toggle">
                   <button
-                    className={`sort-btn ${sortBy === 'likes' ? 'active' : ''}`}
-                    onClick={() => setSortBy('likes')}
-                  >
-                    Likes
-                  </button>
-                  <button
                     className={`sort-btn ${sortBy === 'views' ? 'active' : ''}`}
                     onClick={() => setSortBy('views')}
                   >
                     Views
+                  </button>
+                  <button
+                    className={`sort-btn ${sortBy === 'likes' ? 'active' : ''}`}
+                    onClick={() => setSortBy('likes')}
+                  >
+                    Likes
                   </button>
                 </div>
                 <h2 className="results-title">Found {state.results.length} Review{state.results.length !== 1 ? 's' : ''}</h2>
@@ -634,11 +659,6 @@ export default function Popup() {
                         alt={video.title}
                         className="result-thumbnail"
                       />
-                      <div className="external-link-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                          <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-                        </svg>
-                      </div>
                     </div>
                     <div className="result-content">
                       <h3 className="result-video-title" title={video.title}>
@@ -647,10 +667,7 @@ export default function Popup() {
                       <p className="result-channel">{video.channelTitle}</p>
                       <div className="result-stats">
                         <span className="result-stat">
-                          <svg className="stat-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                          </svg>
-                          {formatCount(video.viewCount)}
+                          {formatCount(video.viewCount)} views
                         </span>
                         {video.likeCount !== undefined && (
                           <span className="result-stat">
@@ -660,6 +677,11 @@ export default function Popup() {
                             {formatCount(video.likeCount)}
                           </span>
                         )}
+                      </div>
+                      <div className="external-link-icon">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                        </svg>
                       </div>
                     </div>
                   </div>

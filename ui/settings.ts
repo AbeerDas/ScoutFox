@@ -51,7 +51,7 @@ async function checkBackendStatus(): Promise<void> {
   const message = document.getElementById('backend-status-message');
   if (!card || !message) return;
   
-  const icon = card.querySelector('.status-icon');
+  const icon = document.getElementById('backend-status-icon') || card.querySelector('.status-icon');
   if (!icon) return;
   
   try {
@@ -71,8 +71,14 @@ async function checkBackendStatus(): Promise<void> {
     
       if (response.status === 400 || response.status === 500 || response.ok) {
         card.className = 'backend-status-card connected';
-        icon.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
         icon.className = 'status-icon connected';
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z');
+        svg.appendChild(path);
+        icon.textContent = '';
+        icon.appendChild(svg);
       
       try {
         const responseData = await response.json();
@@ -88,15 +94,27 @@ async function checkBackendStatus(): Promise<void> {
       }
       } else {
         card.className = 'backend-status-card disconnected';
-        icon.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
         icon.className = 'status-icon disconnected';
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z');
+        svg.appendChild(path);
+        icon.textContent = '';
+        icon.appendChild(svg);
         message.textContent = 'Backend service is currently unavailable. Please use your own API keys.';
       }
     } catch (error: any) {
       console.error('[Settings] Backend status check error:', error);
       card.className = 'backend-status-card disconnected';
-      icon.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
       icon.className = 'status-icon disconnected';
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z');
+      svg.appendChild(path);
+      icon.textContent = '';
+      icon.appendChild(svg);
     if (error.name === 'AbortError') {
       message.textContent = 'Backend status check timed out. Please use your own API keys.';
     } else {
@@ -197,6 +215,14 @@ function loadSettings(): void {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+  // Privacy Policy link
+  const privacyLink = document.getElementById('privacy-policy-link');
+  if (privacyLink) {
+    privacyLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: chrome.runtime.getURL('privacy.html') });
+    });
+  }
   // Toggle handlers
   const youtubeToggle = document.getElementById('use-own-youtube');
   if (youtubeToggle) {

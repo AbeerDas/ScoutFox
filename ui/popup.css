@@ -37,10 +37,17 @@
   max-height: 650px;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  overflow-y: auto;
   overflow-x: hidden;
   background: var(--bg-bubbly);
   position: relative;
+}
+
+.popup-container.has-results {
+  overflow-y: auto;
+}
+
+.popup-container:not(.has-results) {
+  overflow-y: hidden;
 }
 
 /* Bubbly background elements */
@@ -122,7 +129,8 @@
 }
 
 .settings-btn,
-.mail-btn {
+.mail-btn,
+.privacy-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -136,7 +144,8 @@
 }
 
 .settings-btn:hover,
-.mail-btn:hover {
+.mail-btn:hover,
+.privacy-btn:hover {
   background: rgba(255, 107, 53, 0.1);
   color: var(--orange-primary);
 }
@@ -593,26 +602,24 @@
 
 .external-link-icon {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background: rgba(0, 0, 0, 0.7);
-  border-radius: 4px;
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  bottom: 0;
+  right: 0;
+  color: var(--text-secondary);
   opacity: 0;
   transition: opacity 0.2s;
   z-index: 2;
+  pointer-events: none;
 }
 
 .result-item:hover .external-link-icon {
-  opacity: 1;
+  opacity: 0.6;
 }
 
 .result-content {
   flex: 1;
   min-width: 0;
+  position: relative;
+  padding-bottom: 16px;
 }
 
 .result-video-title {
