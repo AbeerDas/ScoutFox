@@ -255,11 +255,17 @@ export async function searchYouTubeForProduct(
   subtitle?: string | null,
   useAI: boolean = false
 ): Promise<VideoResult[]> {
-  // Try backend API first
-  try {
-    const { VERCEL_API_URL } = await import('../shared/config');
-    
-    if (VERCEL_API_URL && !VERCEL_API_URL.includes('your-project-name')) {
+  // Check if user wants to use their own keys
+  const storage = await chrome.storage.local.get(['youtubeApiKey', 'useOwnYouTubeKey']);
+  const useOwnKey = storage.useOwnYouTubeKey && storage.youtubeApiKey;
+  
+  // If user has their own key and wants to use it, skip backend
+  if (!useOwnKey) {
+    // Try backend API first (only if user hasn't chosen to use own keys)
+    try {
+      const { VERCEL_API_URL } = await import('../shared/config');
+      
+      if (VERCEL_API_URL && !VERCEL_API_URL.includes('your-project-name')) {
       // Add timeout to prevent hanging
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout (increased for slow backend)
@@ -294,33 +300,71 @@ export async function searchYouTubeForProduct(
           if (data.success && data.results) {
             console.log('[Backend] Success! Found', data.results.length, 'results');
             return data.results;
+          } else if (data.videos && Array.isArray(data.videos)) {
+            console.log('[Backend] Found videos array (legacy format), converting...');
+            return data.videos.map((v: any) => ({
+              videoId: v.videoId,
+              title: v.title,
+              channelTitle: v.channelName || v.channelTitle,
+              thumbnailUrl: v.thumbnailUrl,
+              viewCount: v.viewCount || 0,
+              likeCount: v.likeCount,
+              publishedAt: v.publishedAt,
+            }));
           } else {
             console.warn('[Backend] Unsuccessful response:', data);
-            throw new Error(data.error || 'Backend returned unsuccessful response');
+            const errorMsg = data.error || 'Backend returned unsuccessful response';
+            // Check for quota error - don't throw, just log and fall through to local search
+            if (errorMsg.includes('quota') || errorMsg.includes('403') || errorMsg.includes('quotaExceeded')) {
+              console.warn('[Backend] Quota exceeded, falling back to local search if available');
+              // Break out of try block to fall through to local search
+              throw new Error('QUOTA_EXCEEDED');
+            } else {
+              throw new Error(errorMsg);
+            }
           }
         } else {
           const errorText = await response.text().catch(() => 'Unknown error');
           console.error('[Backend] Error response:', response.status, errorText);
-          throw new Error(`Backend API error: ${response.status} - ${errorText.substring(0, 100)}`);
+          // Check if it's a quota error in the error text
+          if (errorText.includes('quota') || errorText.includes('403') || errorText.includes('quotaExceeded')) {
+            console.warn('[Backend] Quota exceeded in error response, falling back to local search if available');
+            // Break out of try block to fall through to local search
+            throw new Error('QUOTA_EXCEEDED');
+          } else {
+            throw new Error(`Backend API error: ${response.status} - ${errorText.substring(0, 100)}`);
+          }
         }
       } catch (fetchError) {
         clearTimeout(timeoutId);
-        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        if (fetchError instanceof Error && fetchError.message === 'QUOTA_EXCEEDED') {
+          console.warn('[Backend] Quota exceeded, will try local search if available');
+          // Don't throw - let it fall through to local search
+        } else if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           console.error('[Backend] Request timed out after 25 seconds');
-          throw new Error('Backend request timed out. The service may be slow or unavailable.');
+          // Don't throw - let it fall through to local search
         } else if (fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
           console.error('[Backend] Network error:', fetchError.message);
-          throw new Error('Failed to connect to backend. Check your internet connection or backend URL.');
+          // Don't throw - let it fall through to local search
         } else {
           console.error('[Backend] Error:', fetchError);
-          throw fetchError;
+          // Don't throw - let it fall through to local search
         }
       }
+      }
+    } catch (error) {
+      // If it's a quota error, don't log as warning - it's expected
+      if (error instanceof Error && error.message !== 'QUOTA_EXCEEDED') {
+        console.warn('[Backend] Backend failed, attempting fallback to local search:', error);
+      } else if (error instanceof Error && error.message === 'QUOTA_EXCEEDED') {
+        console.log('[Backend] Quota exceeded, falling back to local search');
+      }
     }
-  } catch (error) {
-    console.warn('[Backend] Backend failed, attempting fallback to local search:', error);
+  } else {
+    console.log('[Background] User has chosen to use their own API key, skipping backend');
   }
 
+  // Local search (either user's key or fallback from backend failure)
   let searchTitle = title;
   
   if (useAI) {
@@ -341,7 +385,19 @@ export async function searchYouTubeForProduct(
     return [];
   }
 
-  // Try queries in order until we get results
+  // Check for API key (user's key if useOwnKey is true, otherwise try to get from storage)
+  const apiKey = useOwnKey 
+    ? storage.youtubeApiKey 
+    : await getApiKey().catch(() => null);
+    
+  if (!apiKey) {
+    if (useOwnKey) {
+      throw new Error('Your YouTube API key is not configured. Please add it in settings.');
+    } else {
+      throw new Error('Backend service unavailable and no API keys configured. Please check your connection or configure API keys in settings.');
+    }
+  }
+
   try {
     for (const query of queries) {
       try {

@@ -51,6 +51,7 @@ export async function handleYouTubeToAmazonSearch(
     return {
       success: true,
       url: amazonURL,
+      productName: productName,
     };
   } catch (error) {
     console.error('ScoutFox: Error in YouTube to Amazon search', error);
@@ -64,6 +65,7 @@ export async function handleYouTubeToAmazonSearch(
       return {
         success: true,
         url: amazonURL,
+        productName: fallbackName,
       };
     } catch (fallbackError) {
       return {

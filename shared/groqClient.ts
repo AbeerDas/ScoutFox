@@ -28,13 +28,19 @@ export async function optimizeTitleForYouTube(
   title: string,
   subtitle?: string | null
 ): Promise<string> {
-  // Get API key from storage or use default
+  // Get API key from storage
+  const storage = await chrome.storage.local.get(['groqApiKey', 'useOwnGroqKey']);
+  const useOwnKey = storage.useOwnGroqKey && storage.groqApiKey;
   const apiKey = await getGroqApiKey();
+  
   if (!apiKey) {
     // Fallback to basic normalization if no API key
     const { normalizeAmazonTitleToSearch } = await import('./normalizeTitle');
     return normalizeAmazonTitleToSearch(title, subtitle);
   }
+  
+  // If user has their own key and wants to use it, use it directly
+  // Otherwise, backend will handle it (this function is only called for local fallback)
   
   // Use the retrieved API key
   const currentKey = groqConfig.apiKey;
@@ -117,6 +123,14 @@ Optimized product name:`;
  * Gets Groq API key from storage
  */
 export async function getGroqApiKey(): Promise<string | null> {
+  // Check if user wants to use their own key
+  const storage = await chrome.storage.local.get(['groqApiKey', 'useOwnGroqKey']);
+  const useOwnKey = storage.useOwnGroqKey && storage.groqApiKey;
+  
+  if (useOwnKey) {
+    return storage.groqApiKey;
+  }
+
   if (groqConfig.apiKey) {
     return groqConfig.apiKey;
   }
@@ -127,9 +141,8 @@ export async function getGroqApiKey(): Promise<string | null> {
       groqConfig.apiKey = stored.groqApiKey;
       return groqConfig.apiKey;
     }
-    // Return default if no stored key
-    return groqConfig.apiKey || null;
+    return null;
   } catch (error) {
-    return groqConfig.apiKey || null;
+    return null;
   }
 }
