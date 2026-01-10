@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { VideoResult, AmazonProductInfo } from '../shared/types';
+import type { VideoResult, AmazonProductInfo, YouTubePageContext } from '../shared/types';
 import { formatCount } from '../shared/utils';
 import './popup.css';
 
@@ -28,8 +28,36 @@ export default function Popup() {
   const [showSettings, setShowSettings] = useState(false);
   const [useAI, setUseAI] = useState(true);
   const [sortBy, setSortBy] = useState<'likes' | 'views'>('views');
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [isYouTubePage, setIsYouTubePage] = useState(false);
 
-  // Load persisted state and API keys on mount
+  useEffect(() => {
+    const checkBackendStatus = async () => {
+      try {
+        const { VERCEL_API_URL } = await import('../shared/config');
+        if (VERCEL_API_URL && !VERCEL_API_URL.includes('your-project-name')) {
+          const response = await fetch(`${VERCEL_API_URL}/api/search-youtube`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productTitle: 'test', optimizeTitle: false }),
+          });
+          
+          if (response.status === 400 || response.status === 500 || response.ok) {
+            setBackendStatus('connected');
+          } else {
+            setBackendStatus('disconnected');
+          }
+        } else {
+          setBackendStatus('disconnected');
+        }
+      } catch (error) {
+        console.warn('Backend status check failed:', error);
+        setBackendStatus('disconnected');
+      }
+    };
+
+    checkBackendStatus();
+  }, []);
   useEffect(() => {
     chrome.storage.local.get(['youtubeApiKey', 'groqApiKey', 'popupState', 'useAI'], (data) => {
       if (data.youtubeApiKey) {
@@ -52,19 +80,30 @@ export default function Popup() {
           // Ignore parse errors
         }
       }
-      // Show settings if no API keys
-      if (!data.youtubeApiKey) {
-        setShowSettings(true);
-      }
+      // Don't auto-show settings - backend doesn't require API keys
     });
   }, []);
 
-  // Save state whenever it changes
   useEffect(() => {
     if (state.results.length > 0 || state.productInfo) {
       chrome.storage.local.set({ popupState: JSON.stringify(state) });
     }
   }, [state]);
+
+  useEffect(() => {
+    const checkPageType = async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab.url) {
+          const url = tab.url.toLowerCase();
+          setIsYouTubePage(url.includes('youtube.com/watch') || url.includes('youtu.be/'));
+        }
+      } catch (error) {
+        console.error('Error checking page type:', error);
+      }
+    };
+    checkPageType();
+  }, []);
 
   const handleSearch = async (bypassCache: boolean = false) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
@@ -72,13 +111,83 @@ export default function Popup() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
-      // Check for all Amazon domains
+      if (!tab.url) {
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Unable to detect current page.',
+        }));
+        return;
+      }
+
+      const url = tab.url.toLowerCase();
+      const isYouTube = url.includes('youtube.com/watch') || url.includes('youtu.be/');
+      
+      if (isYouTube) {
+        try {
+          let context: YouTubePageContext | null = null;
+          
+          try {
+            const response = await chrome.tabs.sendMessage(tab.id!, { action: 'extractYouTubeContext' }) as { success: boolean; data?: YouTubePageContext; error?: string };
+            if (response.success && response.data) {
+              context = response.data;
+            } else {
+              throw new Error(response.error || 'Failed to extract context');
+            }
+          } catch (msgError) {
+            console.log('[Popup] First message attempt failed, trying to inject YouTube script:', msgError);
+            try {
+              await chrome.scripting.executeScript({
+                target: { tabId: tab.id! },
+                files: ['youtube.js'],
+              });
+              await new Promise(resolve => setTimeout(resolve, 500));
+              const retryResponse = await chrome.tabs.sendMessage(tab.id!, { action: 'extractYouTubeContext' }) as { success: boolean; data?: YouTubePageContext; error?: string };
+              if (retryResponse.success && retryResponse.data) {
+                context = retryResponse.data;
+              } else {
+                throw new Error(retryResponse.error || 'Failed to extract context after injection');
+              }
+            } catch (injectError) {
+              console.error('[Popup] Failed to inject or communicate with YouTube script:', injectError);
+              throw new Error('Could not extract product information from YouTube page. Please refresh the page and try again.');
+            }
+          }
+          
+          if (!context || !context.videoTitle) {
+            console.error('[Popup] Context is missing or invalid:', context);
+            throw new Error('Could not extract YouTube context. The page may not be fully loaded.');
+          }
+          
+          const amazonResponse = await chrome.runtime.sendMessage({
+            type: 'SEARCH_AMAZON_FROM_YOUTUBE',
+            context,
+          }) as { success: boolean; url?: string; error?: string };
+          
+          if (amazonResponse.success && amazonResponse.url) {
+            chrome.tabs.create({ url: amazonResponse.url });
+            setState(prev => ({ ...prev, loading: false }));
+            return;
+          } else {
+            throw new Error(amazonResponse.error || 'Failed to extract product');
+          }
+        } catch (error) {
+          console.error('YouTube to Amazon search error:', error);
+          setState(prev => ({
+            ...prev,
+            loading: false,
+            error: error instanceof Error ? error.message : 'Failed to search Amazon from YouTube',
+          }));
+          return;
+        }
+      }
+      
       const amazonDomains = ['amazon.com', 'amazon.ca', 'amazon.co.uk', 'amazon.de', 'amazon.fr', 
         'amazon.it', 'amazon.es', 'amazon.co.jp', 'amazon.in', 'amazon.com.au', 
         'amazon.com.br', 'amazon.com.mx', 'amazon.nl', 'amazon.se', 'amazon.pl',
         'amazon.sg', 'amazon.ae', 'amazon.sa', 'amazon.tr'];
       
-      if (!tab.url || !amazonDomains.some(domain => tab.url?.includes(domain))) {
+      if (!amazonDomains.some(domain => url.includes(domain))) {
         setState(prev => ({
           ...prev,
           loading: false,
@@ -125,16 +234,72 @@ export default function Popup() {
 
       setState(prev => ({ ...prev, productInfo }));
 
-      // Search YouTube with optional AI optimization
-      const searchResponse = await chrome.runtime.sendMessage({
+      // Try calling backend directly from popup (bypass service worker if it's not responding)
+      try {
+        const { VERCEL_API_URL } = await import('../shared/config');
+        
+        if (VERCEL_API_URL && !VERCEL_API_URL.includes('your-project-name')) {
+          console.log('[Popup] Trying direct backend call:', VERCEL_API_URL);
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
+          
+          try {
+            const response = await fetch(`${VERCEL_API_URL}/api/search-youtube`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                productTitle: productInfo.title,
+                subtitle: productInfo.subtitle || null,
+                optimizeTitle: useAI,
+              }),
+              signal: controller.signal,
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success && data.results) {
+                console.log('[Popup] Direct backend call succeeded!');
+                setState(prev => ({
+                  ...prev,
+                  loading: false,
+                  results: data.results || [],
+                }));
+                return;
+              }
+            }
+          } catch (fetchError) {
+            clearTimeout(timeoutId);
+            if (fetchError instanceof Error && fetchError.name !== 'AbortError') {
+              console.warn('[Popup] Direct backend call failed, trying service worker:', fetchError);
+            }
+          }
+        }
+      } catch (configError) {
+        console.warn('[Popup] Could not import config, trying service worker:', configError);
+      }
+
+      // Fallback: Use service worker (if it's active)
+      console.log('[Popup] Attempting to use service worker...');
+      const searchPromise = chrome.runtime.sendMessage({
         action: 'searchYouTubeForProduct',
         title: productInfo.title,
         subtitle: productInfo.subtitle,
         bypassCache,
-        useAI: useAI && !!groqApiKey,
-      }) as { success: boolean; data?: VideoResult[]; error?: string };
+        useAI: useAI,
+      }) as Promise<{ success: boolean; data?: VideoResult[]; error?: string }>;
 
-      if (searchResponse.success) {
+      const timeoutPromise = new Promise<{ success: boolean; error: string }>((resolve) => {
+        setTimeout(() => {
+          resolve({ success: false, error: 'Request timed out. Please reload the extension and try again.' });
+        }, 15000); // 15 second timeout
+      });
+
+      const searchResponse = await Promise.race([searchPromise, timeoutPromise]);
+
+      if (searchResponse.success && 'data' in searchResponse) {
         setState(prev => ({
           ...prev,
           loading: false,
@@ -204,7 +369,7 @@ export default function Popup() {
             onClick={() => {
               const subject = encodeURIComponent('ScoutFox Support');
               const body = encodeURIComponent('Hello,\n\n');
-              window.open(`mailto:abeerdas647@gmail.com?subject=${subject}&body=${body}`, '_blank');
+              window.open(`aamailto:abeerdas647@gmail.com?subject=${subject}&body=${body}`, '_blank');
             }}
             title="Contact Support"
           >
@@ -229,13 +394,41 @@ export default function Popup() {
       {/* Settings Panel */}
       {showSettings && (
         <div className="settings-panel">
+          <h2 className="settings-title">Settings</h2>
+          
+          {/* Backend Status */}
+          <div className="settings-section">
+            <div className="backend-status">
+              <span className="backend-status-label">ScoutFox Service:</span>
+                      <span className={`backend-status-indicator ${backendStatus}`}>
+                        {backendStatus === 'checking' && 'Checking...'}
+                        {backendStatus === 'connected' && 'Connected'}
+                        {backendStatus === 'disconnected' && 'Disconnected'}
+                      </span>
+            </div>
+            <p className="settings-description">
+              {backendStatus === 'connected' 
+                ? 'Using ScoutFox backend service (no API keys needed)'
+                : backendStatus === 'checking'
+                ? 'Checking connection to ScoutFox service...'
+                : 'Backend unavailable. You can use your own API keys below.'}
+            </p>
+          </div>
+
+          <div className="settings-divider"></div>
+
+          <h3 className="settings-subtitle">Optional: Use Your Own API Keys</h3>
+          <p className="settings-description">
+            If you prefer to use your own API keys instead of the ScoutFox service, enter them below.
+          </p>
+
           <div className="settings-section">
             <label className="settings-label">YouTube API Key:</label>
             <input
               type="password"
               value={youtubeApiKey}
               onChange={(e) => setYoutubeApiKey(e.target.value)}
-              placeholder="Enter YouTube Data API v3 key"
+              placeholder="Enter YouTube API Key (optional)"
               className="settings-input"
             />
             <button onClick={handleSetYoutubeApiKey} className="btn-save">Save</button>
@@ -246,7 +439,7 @@ export default function Popup() {
               type="password"
               value={groqApiKey}
               onChange={(e) => setGroqApiKey(e.target.value)}
-              placeholder="Enter Groq API key"
+              placeholder="Enter Groq API key (optional)"
               className="settings-input"
             />
             <button onClick={handleSetGroqApiKey} className="btn-save">Save</button>
@@ -273,13 +466,13 @@ export default function Popup() {
         <>
           <button
             onClick={() => handleSearch(false)}
-            disabled={state.loading || !youtubeApiKey}
+            disabled={state.loading}
             className="btn-search"
           >
             {state.loading ? (
               <span className="loading-spinner"></span>
             ) : (
-              'Search Reviews'
+              isYouTubePage ? 'Search for Products' : 'Search Reviews'
             )}
           </button>
 

@@ -4,9 +4,9 @@
  */
 
 import type { YouTubePageContext, LLMExtractionResult } from './types';
+import { VERCEL_API_URL } from './config';
 
-const VERCEL_API_URL = process.env.VERCEL_API_URL || 'https://scoutfox.vercel.app/api/extract-product';
-const REQUEST_TIMEOUT = 10000; // 10 seconds
+const REQUEST_TIMEOUT = 10000;
 
 /**
  * Extract product name from YouTube context using LLM via Vercel backend
@@ -16,10 +16,18 @@ export async function extractProductWithLLM(
   context: YouTubePageContext
 ): Promise<LLMExtractionResult> {
   try {
+    if (!VERCEL_API_URL || VERCEL_API_URL.includes('your-project-name')) {
+      throw new Error('Backend API URL not configured');
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    const response = await fetch(VERCEL_API_URL, {
+    const apiUrl = `${VERCEL_API_URL}/api/extract-product`;
+    console.log('[LLM] Calling extract-product endpoint:', apiUrl);
+    console.log('[LLM] Context:', { videoTitle: context.videoTitle, hasRawText: !!context.rawTextBlob });
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

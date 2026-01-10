@@ -1,62 +1,35 @@
-/**
- * YouTube content script for extracting product information and injecting "Search on Amazon" button
- */
-
 import type { YouTubePageContext } from '../shared/types';
 
-/**
- * Extract all available semantic signals from YouTube video page
- */
 function extractYouTubeContext(): YouTubePageContext {
-  // Video title
-  const titleElement = document.querySelector('h1.ytd-watch-metadata yt-formatted-string, h1 yt-formatted-string');
-  const videoTitle = titleElement?.textContent?.trim() || null;
-
-  // Document title
+  const titleElement = document.querySelector('h1.ytd-watch-metadata') as HTMLElement;
+  const videoTitle = titleElement?.innerText?.trim() || null;
   const documentTitle = document.title || null;
+  const channelElement = document.querySelector('#channel-name a') as HTMLElement;
+  const channelName = channelElement?.innerText?.trim() || null;
 
-  // Channel name
-  const channelElement = document.querySelector('ytd-channel-name a, #channel-name a, #owner-sub-count a');
-  const channelName = channelElement?.textContent?.trim() || null;
-
-  // Description - try to get expanded description
   let description: string | null = null;
-  
-  // Try to find and expand description if collapsed
-  const moreButton = document.querySelector('#description #more, ytd-expander #more');
-  if (moreButton && (moreButton as HTMLElement).textContent?.includes('more')) {
-    (moreButton as HTMLElement).click();
-    // Wait a bit for expansion
-    setTimeout(() => {}, 100);
-  }
-
-  // Get description text
-  const descriptionElement = document.querySelector('#description, ytd-expander #description');
+  const descriptionElement = document.querySelector('#description-inline-expander') as HTMLElement;
   if (descriptionElement) {
-    description = descriptionElement.textContent?.trim() || null;
+    description = descriptionElement.innerText?.trim() || null;
+  }
+  
+  if (!description) {
+    const fallbackDesc = document.querySelector('#description, ytd-expander #description') as HTMLElement;
+    if (fallbackDesc) {
+      description = fallbackDesc.innerText?.trim() || null;
+    }
   }
 
-  // Get visible metadata (tags, badges, etc.)
-  const metadataElements = document.querySelectorAll('ytd-watch-info-text, .ytd-watch-info-text, #info-text');
-  let metadataText = '';
-  metadataElements.forEach(el => {
-    const text = el.textContent?.trim();
-    if (text) {
-      metadataText += text + ' ';
-    }
-  });
-
-  // Meta tags
+  const keywords = document.querySelector('meta[name="keywords"]')?.getAttribute('content');
   const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
   const ogDescription = document.querySelector('meta[property="og:description"]')?.getAttribute('content');
-
-  // Combine all text into raw blob
+  
   const rawTextBlob = [
     videoTitle,
     documentTitle,
     channelName,
     description,
-    metadataText,
+    keywords,
     ogTitle,
     ogDescription,
   ]
@@ -73,22 +46,16 @@ function extractYouTubeContext(): YouTubePageContext {
   };
 }
 
-/**
- * Inject "Search on Amazon" button into YouTube page
- */
 function injectAmazonButton() {
-  // Check if button already exists
   if (document.getElementById('scoutfox-amazon-button')) {
     return;
   }
 
-  // Find a good place to inject the button (near the subscribe button or action buttons)
   const targetContainer = document.querySelector(
     '#top-level-buttons-computed, ytd-menu-renderer, #actions, .ytd-watch-flexy'
   );
 
   if (!targetContainer) {
-    // Fallback: inject near title
     const titleContainer = document.querySelector('ytd-watch-metadata, #above-the-fold');
     if (titleContainer) {
       createButton(titleContainer as HTMLElement);
@@ -102,7 +69,7 @@ function injectAmazonButton() {
 function createButton(container: HTMLElement) {
   const button = document.createElement('button');
   button.id = 'scoutfox-amazon-button';
-  button.textContent = 'Search on Amazon';
+  button.textContent = 'Search for Products';
   button.className = 'scoutfox-amazon-btn';
   
   button.addEventListener('click', async () => {
@@ -111,8 +78,6 @@ function createButton(container: HTMLElement) {
 
     try {
       const context = extractYouTubeContext();
-      
-      // Send to background script
       const response = await chrome.runtime.sendMessage({
         type: 'SEARCH_AMAZON_FROM_YOUTUBE',
         context,
@@ -128,11 +93,9 @@ function createButton(container: HTMLElement) {
       alert('An error occurred. Please try again.');
     } finally {
       button.disabled = false;
-      button.textContent = 'Search on Amazon';
+      button.textContent = 'Search for Products';
     }
   });
-
-  // Add styles
   if (!document.getElementById('scoutfox-amazon-button-styles')) {
     const style = document.createElement('style');
     style.id = 'scoutfox-amazon-button-styles';
@@ -166,7 +129,6 @@ function createButton(container: HTMLElement) {
   container.appendChild(button);
 }
 
-// Initial injection
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     setTimeout(injectAmazonButton, 1000);
@@ -175,13 +137,11 @@ if (document.readyState === 'loading') {
   setTimeout(injectAmazonButton, 1000);
 }
 
-// Watch for YouTube SPA navigation
 let lastUrl = location.href;
 const observer = new MutationObserver(() => {
   const url = location.href;
   if (url !== lastUrl) {
     lastUrl = url;
-    // Remove old button and inject new one
     const oldButton = document.getElementById('scoutfox-amazon-button');
     if (oldButton) {
       oldButton.remove();
@@ -195,11 +155,45 @@ observer.observe(document.body, {
   subtree: true,
 });
 
-// Also listen for popstate
 window.addEventListener('popstate', () => {
   const oldButton = document.getElementById('scoutfox-amazon-button');
   if (oldButton) {
     oldButton.remove();
   }
   setTimeout(injectAmazonButton, 1000);
+});
+
+chrome.runtime.onMessage.addListener((
+  message: { action: string },
+  _sender: chrome.runtime.MessageSender,
+  sendResponse: (response: { success: boolean; data?: YouTubePageContext; error?: string }) => void
+) => {
+  if (message.action === 'extractYouTubeContext') {
+    try {
+      console.log('[YouTube] Extracting context...');
+      const context = extractYouTubeContext();
+      console.log('[YouTube] Context extracted:', {
+        hasVideoTitle: !!context.videoTitle,
+        hasDescription: !!context.description,
+        hasChannelName: !!context.channelName,
+        rawTextBlobLength: context.rawTextBlob?.length || 0,
+      });
+      
+      if (!context.videoTitle && !context.documentTitle) {
+        console.warn('[YouTube] No title found in context');
+        sendResponse({ 
+          success: false, 
+          error: 'Could not find video title on page. Make sure you are on a YouTube video page.' 
+        });
+        return true;
+      }
+      
+      sendResponse({ success: true, data: context });
+    } catch (error) {
+      console.error('[YouTube] Error extracting context:', error);
+      sendResponse({ success: false, error: String(error) });
+    }
+    return true;
+  }
+  return false;
 });

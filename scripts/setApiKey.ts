@@ -32,7 +32,7 @@ async function main() {
   console.log('ScoutFox - API Key Setup');
   console.log('========================\n');
   console.log('This script will save your API key locally for development.');
-  console.log('⚠️  WARNING: Do not commit api-key.local.ts to version control!\n');
+  console.log('WARNING: Do not commit api-key.local.ts to version control!\n');
 
   const apiKey = await promptApiKey();
 

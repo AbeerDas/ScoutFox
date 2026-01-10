@@ -1,73 +1,32 @@
-/**
- * Background service worker for YouTube API integration
- * All YouTube API calls are performed here to keep network logic centralized
- */
-
 import type { VideoResult, CacheEntry, YouTubeConfig } from '../shared/types';
 import { normalizeAmazonTitleToSearch, generateSearchQueries } from '../shared/normalizeTitle';
 
-// Default configuration
 const DEFAULT_CONFIG: YouTubeConfig = {
-  apiKey: '', // Must be set via setApiKey or environment
-  cacheTTL: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
+  apiKey: '',
+  cacheTTL: 24 * 60 * 60 * 1000,
   maxResults: 6,
 };
 
 let config: YouTubeConfig = { ...DEFAULT_CONFIG };
 
-/**
- * Sets the YouTube API key (called from popup or config)
- */
 export function setApiKey(apiKey: string) {
   config.apiKey = apiKey;
   console.debug('YouTube API key set');
 }
 
-/**
- * Gets API key from storage or environment
- */
 async function getApiKey(): Promise<string> {
   if (config.apiKey) {
     return config.apiKey;
   }
 
-  // Try to get from storage
   const stored = await chrome.storage.local.get('youtubeApiKey');
   if (stored.youtubeApiKey) {
     config.apiKey = stored.youtubeApiKey;
     return config.apiKey;
   }
 
-  // Try to get from environment (for build-time injection)
-  // @ts-ignore - This will be injected at build time if available
-  if (typeof YOUTUBE_API_KEY !== 'undefined') {
-    config.apiKey = YOUTUBE_API_KEY;
-    return config.apiKey;
-  }
-
-  // Try to import from local file (development only)
-  try {
-    // @ts-ignore - Dynamic import for local dev file
-    const localKey = await import('../api-key.local.js?raw');
-    if (localKey && localKey.default) {
-      // Extract key from the file content (basic parsing)
-      const match = localKey.default.match(/YOUTUBE_API_KEY\s*=\s*['"]([^'"]+)['"]/);
-      if (match && match[1]) {
-        config.apiKey = match[1];
-        return config.apiKey;
-      }
-    }
-  } catch (e) {
-    // Local file doesn't exist, that's okay
-    console.debug('No local API key file found');
-  }
-
-  throw new Error('YouTube API key not configured. Please set it in extension settings or via setApiKey().');
+  throw new Error('YouTube API key not configured. Backend service is used by default, but API key is needed if backend is unavailable.');
 }
-
-/**
- * Exponential backoff helper
- */
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -288,16 +247,82 @@ export async function searchYouTube(
 }
 
 /**
- * Searches YouTube using Amazon product info with optional AI optimization
+ * Searches YouTube using Amazon product info via backend API
+ * Falls back to local search if backend is unavailable
  */
 export async function searchYouTubeForProduct(
   title: string,
   subtitle?: string | null,
   useAI: boolean = false
 ): Promise<VideoResult[]> {
+  // Try backend API first
+  try {
+    const { VERCEL_API_URL } = await import('../shared/config');
+    
+    if (VERCEL_API_URL && !VERCEL_API_URL.includes('your-project-name')) {
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout (increased for slow backend)
+      
+      try {
+        const apiUrl = `${VERCEL_API_URL}/api/search-youtube`;
+        console.log('[Backend] Calling API:', apiUrl);
+        console.log('[Backend] Request payload:', { productTitle: title, subtitle, optimizeTitle: useAI });
+        
+        const startTime = Date.now();
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            productTitle: title,
+            subtitle: subtitle || null,
+            optimizeTitle: useAI,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+        const duration = Date.now() - startTime;
+        console.log(`[Backend] Response received in ${duration}ms - Status:`, response.status, response.statusText);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[Backend] Response data:', data);
+          
+          if (data.success && data.results) {
+            console.log('[Backend] Success! Found', data.results.length, 'results');
+            return data.results;
+          } else {
+            console.warn('[Backend] Unsuccessful response:', data);
+            throw new Error(data.error || 'Backend returned unsuccessful response');
+          }
+        } else {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.error('[Backend] Error response:', response.status, errorText);
+          throw new Error(`Backend API error: ${response.status} - ${errorText.substring(0, 100)}`);
+        }
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          console.error('[Backend] Request timed out after 25 seconds');
+          throw new Error('Backend request timed out. The service may be slow or unavailable.');
+        } else if (fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
+          console.error('[Backend] Network error:', fetchError.message);
+          throw new Error('Failed to connect to backend. Check your internet connection or backend URL.');
+        } else {
+          console.error('[Backend] Error:', fetchError);
+          throw fetchError;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('[Backend] Backend failed, attempting fallback to local search:', error);
+  }
+
   let searchTitle = title;
   
-  // Use Groq AI to optimize title if enabled
   if (useAI) {
     try {
       const { optimizeTitleForYouTube } = await import('../shared/groqClient');
@@ -308,7 +333,6 @@ export async function searchYouTubeForProduct(
     }
   }
 
-  // Generate search queries with optimized or normalized title
   const queries = useAI 
     ? [`${searchTitle} review`, `${searchTitle} unboxing`, `${searchTitle} hands on`]
     : generateSearchQueries(title, subtitle);
@@ -318,30 +342,54 @@ export async function searchYouTubeForProduct(
   }
 
   // Try queries in order until we get results
-  for (const query of queries) {
-    try {
-      const results = await searchYouTube(query);
-      if (results.length > 0) {
-        return results;
+  try {
+    for (const query of queries) {
+      try {
+        const results = await searchYouTube(query);
+        if (results.length > 0) {
+          console.debug('Fallback local search succeeded');
+          return results;
+        }
+      } catch (error) {
+        console.warn(`Query "${query}" failed:`, error);
       }
-    } catch (error) {
-      console.warn(`Query "${query}" failed:`, error);
-      // Continue to next query
     }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('API key not configured')) {
+      throw new Error('Backend service unavailable and no API keys configured. Please check your connection or configure API keys in settings.');
+    }
+    throw error;
   }
 
   return [];
 }
 
+// Message type for runtime messages
+type RuntimeMessage = 
+  | { action: 'searchYouTube'; query?: string; maxResults?: number; bypassCache?: boolean }
+  | { action: 'searchYouTubeForProduct'; title: string; subtitle?: string | null; bypassCache?: boolean; useAI?: boolean }
+  | { action: 'setApiKey'; apiKey: string }
+  | { action: 'setGroqApiKey'; apiKey: string }
+  | { action: 'ping' }
+  | { type: 'AMAZON_PRODUCT_DETECTED'; title: string; subtitle?: string | null; asin?: string };
+
 // Listen for messages from content script or popup
 chrome.runtime.onMessage.addListener((
-  message: { action: string; query?: string; maxResults?: number; bypassCache?: boolean; title?: string; subtitle?: string | null; apiKey?: string; useAI?: boolean },
+  message: RuntimeMessage,
   _sender: chrome.runtime.MessageSender,
   sendResponse: (response: { success: boolean; data?: VideoResult[]; error?: string }) => void
 ) => {
+  // Handle ping to wake up service worker
+  if ('action' in message && message.action === 'ping') {
+    console.log('[Background] Ping received');
+    sendResponse({ success: true });
+    return true;
+  }
+  
   // Handle async operations
   (async () => {
-    if (message.action === 'searchYouTube') {
+    if ('action' in message && message.action === 'searchYouTube') {
+      console.log('[Background] Message received: searchYouTube');
       try {
         const results = await searchYouTube(message.query || '', message.maxResults, message.bypassCache || false);
         sendResponse({ success: true, data: results });
@@ -352,22 +400,38 @@ chrome.runtime.onMessage.addListener((
       return;
     }
 
-    if (message.action === 'searchYouTubeForProduct') {
+    if ('action' in message && message.action === 'searchYouTubeForProduct') {
+      console.log('[Background] Message received: searchYouTubeForProduct');
       if (!message.title) {
         sendResponse({ success: false, error: 'Title is required' });
         return;
       }
       try {
-        const results = await searchYouTubeForProduct(message.title, message.subtitle, message.useAI || false);
+        console.log('[Background] Starting YouTube search for product:', message.title);
+        console.log('[Background] Subtitle:', message.subtitle);
+        console.log('[Background] Use AI:', message.useAI);
+        
+        const results = await searchYouTubeForProduct(message.title, message.subtitle || null, message.useAI || false);
+        
+        console.log('[Background] Search completed, found', results.length, 'results');
+        if (results.length > 0) {
+          console.log('[Background] First result:', results[0].title);
+        }
+        
         sendResponse({ success: true, data: results });
       } catch (error) {
-        console.error('YouTube product search error:', error);
-        sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+        console.error('[Background] YouTube product search error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred during search';
+        console.error('[Background] Error details:', errorMessage);
+        sendResponse({ 
+          success: false, 
+          error: errorMessage
+        });
       }
       return;
     }
 
-    if (message.action === 'setApiKey') {
+    if ('action' in message && message.action === 'setApiKey') {
       if (!message.apiKey) {
         sendResponse({ success: false, error: 'API key is required' });
         return;
@@ -378,7 +442,7 @@ chrome.runtime.onMessage.addListener((
       return;
     }
 
-    if (message.action === 'setGroqApiKey') {
+    if ('action' in message && message.action === 'setGroqApiKey') {
       const { setGroqApiKey } = await import('../shared/groqClient');
       if (!message.apiKey) {
         sendResponse({ success: false, error: 'API key is required' });
@@ -391,11 +455,11 @@ chrome.runtime.onMessage.addListener((
     }
 
     // Handle auto-detection from content script
-    if (message.type === 'AMAZON_PRODUCT_DETECTED') {
+    if ('type' in message && message.type === 'AMAZON_PRODUCT_DETECTED') {
       const { title, subtitle, asin } = message;
       const tabId = _sender.tab?.id;
       
-      if (!tabId) return;
+      if (!tabId || !title) return;
 
       // Check cache first
       const cacheKey = `auto_search_${asin}`;
@@ -409,7 +473,7 @@ chrome.runtime.onMessage.addListener((
           chrome.tabs.sendMessage(tabId, {
             type: 'YOUTUBE_RESULTS_READY',
             results: entry.results,
-            productInfo: { title, subtitle, asin },
+            productInfo: { title, subtitle: subtitle || null, asin },
           }).catch(() => {});
           return;
         }
@@ -424,7 +488,7 @@ chrome.runtime.onMessage.addListener((
       try {
         const { getGroqApiKey } = await import('../shared/groqClient');
         const groqKey = await getGroqApiKey();
-        const results = await searchYouTubeForProduct(title, subtitle, !!groqKey);
+        const results = await searchYouTubeForProduct(title, subtitle || null, !!groqKey);
         
         // Cache results
         await chrome.storage.local.set({

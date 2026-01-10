@@ -149,6 +149,68 @@
   animation: slideDown 0.3s ease-out;
 }
 
+.settings-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+}
+
+.settings-subtitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 16px 0 8px 0;
+  color: var(--text-primary);
+}
+
+.settings-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.settings-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 16px 0;
+}
+
+.backend-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.backend-status-label {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.backend-status-indicator {
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.backend-status-indicator.checking {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.backend-status-indicator.connected {
+  color: #059669;
+  background: #d1fae5;
+}
+
+.backend-status-indicator.disconnected {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;

@@ -42,7 +42,12 @@ export default defineConfig({
       '*://*.amazon.sa/*',
       '*://*.amazon.tr/*',
       '*://*.youtube.com/*',
+      'https://yt-amazon-backend-proxy.vercel.app/*',
+      'https://*.vercel.app/*',
     ],
+    content_security_policy: {
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval' http://localhost:3000; object-src 'self'; connect-src 'self' https://yt-amazon-backend-proxy.vercel.app https://*.vercel.app https://api.groq.com https://www.googleapis.com;",
+    },
   },
   // Content scripts are automatically detected from entrypoints/content.ts
   vite: () => ({

@@ -117,7 +117,7 @@ npm run test:watch
 
 ## Security & API Key Management
 
-### ⚠️ Important Security Notes
+### Important Security Notes
 
 **For Local Development / POC:**
 - The extension stores the API key in `chrome.storage.local` (encrypted by Chrome)
