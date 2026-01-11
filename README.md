@@ -1,280 +1,410 @@
-# ScoutFox - Amazon to YouTube Review Search
+# ScoutFox
 
-A Chrome extension (MV3) built with WXT that extracts product information from Amazon pages and searches YouTube for relevant review videos.
+A production-ready Chrome Extension (Manifest V3) that bridges Amazon and YouTube, enabling users to find product review videos directly from Amazon product pages, and search Amazon products from YouTube videos using AI-powered product extraction.
 
-## Features
+## 🎯 Overview
 
-- **Smart Product Extraction**: Automatically extracts product title, subtitle, and ASIN from Amazon pages
-- **Intelligent Query Normalization**: Transforms Amazon product titles into optimized YouTube search queries
-- **YouTube Integration**: Searches YouTube Data API v3 for review videos
-- **Caching**: Local caching with configurable TTL (default 24 hours) to minimize API calls
-- **Clean UI**: Modern React-based popup interface with Tailwind CSS
-- **Type-Safe**: Full TypeScript implementation with strict mode
-- **Tested**: Unit tests for title normalization logic
+ScoutFox is a bidirectional Chrome extension that:
+- **Amazon → YouTube**: Extracts product information from Amazon pages and searches YouTube for review videos
+- **YouTube → Amazon**: Uses AI (LLM) to extract product names from YouTube videos and opens Amazon search results
 
-## Project Structure
+Built with modern web technologies, TypeScript, React, and a serverless backend architecture.
+
+## 🏗️ Architecture
+
+### Tech Stack
+
+- **Framework**: [WXT](https://wxt.dev/) (Vite + Chrome Extension tooling)
+- **Language**: TypeScript (strict mode)
+- **UI**: React 18 + Tailwind CSS
+- **Build Tool**: Vite 5
+- **Testing**: Vitest
+- **Backend**: Vercel Serverless Functions (Node.js)
+- **AI/LLM**: Groq API (Llama 3.3 70B)
+- **APIs**: YouTube Data API v3
+
+### System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Chrome Extension (MV3)                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
+│  │   Popup UI   │    │  Background │    │   Content   │   │
+│  │   (React)    │◄──►│   Service   │◄──►│   Scripts   │   │
+│  │              │    │   Worker    │    │             │   │
+│  └──────────────┘    └──────────────┘    └──────────────┘   │
+│         │                   │                    │           │
+│         │                   │                    │           │
+│         └───────────────────┴────────────────────┘           │
+│                            │                                 │
+│                            ▼                                 │
+│              ┌──────────────────────────┐                    │
+│              │   chrome.storage.local   │                    │
+│              │   (State & Cache)        │                    │
+│              └──────────────────────────┘                    │
+└─────────────────────────────┬─────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Vercel Backend (Serverless)                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────────────┐         ┌──────────────────┐         │
+│  │ /api/extract-    │         │ /api/search-     │         │
+│  │   product        │         │   youtube        │         │
+│  │ (YouTube→Amazon) │         │ (Amazon→YouTube) │         │
+│  └────────┬─────────┘         └────────┬─────────┘         │
+│           │                            │                    │
+│           ▼                            ▼                    │
+│  ┌──────────────────┐         ┌──────────────────┐         │
+│  │   Groq API       │         │  YouTube Data   │         │
+│  │   (LLM)          │         │  API v3         │         │
+│  └──────────────────┘         └──────────────────┘         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+1. **Manifest V3 Compliance**: Uses service workers instead of background pages for better performance
+2. **Least-Privilege Permissions**: Host permissions scoped to specific URL patterns (product pages only)
+3. **Backend Proxy Architecture**: API keys stored server-side, never exposed to client
+4. **State Persistence**: Results cached locally with URL-based invalidation
+5. **Type Safety**: Full TypeScript with strict mode and shared type definitions
+6. **Content Security Policy**: Strict CSP with no inline scripts, only external connections to trusted APIs
+
+## 📁 Project Structure
 
 ```
 ScoutFox/
-├── background/          # Service worker (YouTube API integration)
-│   ├── index.ts
-│   └── youtube.ts
-├── content-scripts/     # Content scripts for Amazon page extraction
-│   └── amazon.ts
-├── entrypoints/         # WXT entry points
-│   ├── background.ts
-│   ├── content.ts
-│   ├── popup.html
-│   └── popup.tsx
-├── shared/              # Shared utilities and types
-│   ├── normalizeTitle.ts
-│   ├── types.ts
-│   └── utils.ts
-├── tests/               # Unit tests
+├── background/              # Service worker scripts
+│   ├── index.ts            # Service worker entry point
+│   ├── youtube.ts          # YouTube API integration & caching
+│   └── amazon.ts           # YouTube → Amazon search handler
+│
+├── content-scripts/         # DOM interaction scripts
+│   ├── amazon.ts           # Amazon product extraction
+│   └── youtube.ts          # YouTube context extraction
+│
+├── entrypoints/            # WXT entry points
+│   ├── background.ts       # Background script entry
+│   ├── content.ts          # Amazon content script entry
+│   ├── youtube.ts          # YouTube content script entry
+│   ├── popup.html          # Popup HTML structure
+│   ├── popup.tsx           # Popup React entry point
+│   ├── settings.html       # Settings page
+│   └── privacy.html        # Privacy policy page
+│
+├── shared/                 # Shared utilities & types
+│   ├── types.ts            # TypeScript type definitions
+│   ├── config.ts           # Backend API configuration
+│   ├── normalizeTitle.ts   # Amazon title normalization
+│   ├── groqClient.ts       # Groq API client (fallback)
+│   ├── llmExtractProduct.ts # LLM product extraction
+│   ├── regexFallbackNormalize.ts # Regex fallback (deprecated)
+│   └── utils.ts            # Utility functions
+│
+├── ui/                     # React UI components
+│   ├── Popup.tsx           # Main popup component
+│   ├── popup.css           # Popup styles (Tailwind + custom)
+│   └── settings.ts         # Settings page logic
+│
+├── tests/                  # Unit tests
 │   └── normalizeTitle.test.ts
-├── ui/                  # React UI components
-│   ├── Popup.tsx
-│   └── popup.css
-└── scripts/             # Helper scripts
-    └── setApiKey.ts
+│
+├── scripts/                # Build & utility scripts
+│   └── setApiKey.ts        # API key setup helper
+│
+├── wxt.config.ts           # WXT framework configuration
+├── tsconfig.json           # TypeScript configuration
+└── package.json            # Dependencies & scripts
 ```
 
-## Setup Instructions
+## 🚀 Features
+
+### Amazon → YouTube Flow
+
+1. **Product Detection**: Automatically extracts product title, subtitle, and ASIN from Amazon product pages
+2. **Query Optimization**: 
+   - Optional AI-powered query optimization via Groq API
+   - Removes marketing language, preserves model numbers
+   - Generates multiple search query variants
+3. **YouTube Search**: Queries YouTube Data API v3 for review videos
+4. **Results Display**: Shows video thumbnails, titles, channels, view counts, and like counts
+5. **Caching**: 24-hour TTL cache to minimize API calls
+
+### YouTube → Amazon Flow
+
+1. **Context Extraction**: Extracts video title, description, channel name, and page metadata
+2. **AI Product Extraction**: Uses Groq LLM to identify products mentioned in videos
+3. **Multiple Product Detection**: Detects up to 5 products per video (for comparison videos)
+4. **Product Selection**: User selects from detected products
+5. **Amazon Search**: Opens Amazon search results in new tab
+
+### Additional Features
+
+- **State Persistence**: Remembers last search results per page URL
+- **Keyboard Shortcut**: Ctrl+M (Cmd+M on Mac) to open popup
+- **Settings Page**: Configure API keys, toggle AI optimization
+- **Privacy Policy**: Full privacy policy page with GDPR compliance
+- **Error Handling**: Graceful degradation with user-friendly error messages
+- **Multi-domain Support**: Works on all Amazon domains (.com, .ca, .co.uk, etc.)
+
+## 🛠️ Development
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- A YouTube Data API v3 key ([Get one here](https://console.cloud.google.com/apis/credentials))
+- Node.js 18+
+- npm or yarn
+- Chrome browser (for testing)
 
-### Installation
+### Setup
 
-1. **Clone or navigate to the project directory:**
-   ```bash
-   cd ScoutFox
-   ```
+```bash
+# Install dependencies
+npm install
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+# Build for development
+npm run dev
 
-3. **Set up your YouTube API key:**
+# Build for production
+npm run build
 
-   **Option A: Using the helper script (for local development):**
-   ```bash
-   npm run set-api-key
-   # Enter your API key when prompted
-   ```
+# Run tests
+npm test
+```
 
-   **Option B: Manual setup:**
-   - Open the extension popup after building
-   - Enter your API key in the input field
-   - Click "Save API Key"
+### Development Workflow
 
-   **Option C: Environment variable (for build-time injection):**
-   ```bash
-   export YOUTUBE_API_KEY=your_api_key_here
-   npm run build
-   ```
-
-### Development
-
-1. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
-
-2. **Load the extension in Chrome:**
+1. **Start dev server**: `npm run dev`
+2. **Load extension**: 
    - Open `chrome://extensions/`
    - Enable "Developer mode"
    - Click "Load unpacked"
-   - Select the `.output/chrome-mv3` directory
+   - Select `.output/chrome-mv3`
+3. **Hot reload**: WXT automatically reloads on file changes
 
-3. **Test the extension:**
-   - Navigate to any Amazon product page (e.g., `https://www.amazon.com/dp/B08C1W5N87`)
-   - Click the ScoutFox extension icon
-   - Click "Search Reviews"
-   - View YouTube review results
-
-### Building for Production
+### Testing
 
 ```bash
-npm run build
-```
-
-The built extension will be in `.output/chrome-mv3/`.
-
-### Running Tests
-
-```bash
+# Run unit tests
 npm test
-```
 
-Watch mode:
-```bash
+# Watch mode
 npm run test:watch
 ```
 
-## Security & API Key Management
+Tests cover:
+- Title normalization logic
+- Query generation
+- Edge cases (empty titles, special characters, etc.)
 
-### Important Security Notes
+## 🔐 Security & Privacy
 
-**For Local Development / POC:**
-- The extension stores the API key in `chrome.storage.local` (encrypted by Chrome)
-- This is acceptable for personal use or testing
-- The API key is visible in the extension's storage and could be extracted
+### API Key Management
 
-**For Production / Public Distribution:**
+**Production Architecture:**
+- API keys stored server-side in Vercel environment variables
+- Extension makes requests to backend proxy
+- Backend handles all third-party API calls
+- No API keys exposed to client
 
-**DO NOT** embed the API key in client-side code. Instead, use one of these approaches:
+**Optional User Keys:**
+- Users can optionally provide their own API keys
+- Stored in `chrome.storage.local` (encrypted by Chrome)
+- Used as fallback if backend is unavailable
+- Validated before saving
 
-1. **Backend Proxy (Recommended):**
-   - Create a small backend service (e.g., Cloud Run, Netlify Functions, AWS Lambda)
-   - Store the API key securely on the backend
-   - Have the extension call your backend, which then calls YouTube API
-   - This keeps the API key server-side and allows you to implement rate limiting, logging, etc.
+### Permissions
 
-2. **Google Cloud API Key Restrictions:**
-   - If you must use client-side keys, restrict them in Google Cloud Console:
-     - Go to [API Credentials](https://console.cloud.google.com/apis/credentials)
-     - Edit your API key
-     - Under "Application restrictions", select "HTTP referrers"
-     - Add your extension's Chrome Web Store URL or specific domains
-     - Under "API restrictions", limit to "YouTube Data API v3"
-   - This prevents unauthorized use but doesn't hide the key
+- **`storage`**: Cache results and store user preferences
+- **`activeTab`**: Access current tab for product extraction
+- **`scripting`**: Inject content scripts on Amazon/YouTube pages
+- **`tabs`**: Open new tabs for YouTube videos and Amazon searches
 
-3. **Quota Management:**
-   - Monitor your YouTube API quota usage in Google Cloud Console
-   - Set up alerts for quota exhaustion
-   - The extension implements caching to minimize API calls
-   - Consider implementing per-user rate limiting in production
+**Host Permissions** (scoped for least-privilege):
+- Amazon product pages only: `*://*.amazon.*/dp/*`, `*://*.amazon.*/gp/product/*`
+- YouTube watch pages only: `*://*.youtube.com/watch*`
+- Backend API: `https://yt-amazon-backend-proxy.vercel.app/*`
 
-### API Quota Considerations
+### Content Security Policy
 
-YouTube Data API v3 has the following quotas (default free tier):
-- **Queries per day**: 10,000 units
-- **search.list**: 100 units per request
-- **videos.list**: 1 unit per request
+- No inline scripts
+- No `eval()` or `new Function()`
+- Only trusted external connections (backend, Groq API, YouTube API)
+- Strict CSP for extension pages
 
-**Our extension usage:**
-- Each search = 1 `search.list` (100 units) + N `videos.list` (N units, where N = number of results, max 6)
-- Worst case: ~106 units per search
-- With 24-hour caching: ~106 units per unique product per day
-- **Estimated capacity**: ~94 unique product searches per day (free tier)
+### Privacy
 
-**Caching strategy:**
-- Results are cached for 24 hours (configurable)
-- Identical queries within TTL return cached results (0 API calls)
-- This dramatically reduces quota usage for repeated searches
+- No user tracking or analytics
+- No personal data collection
+- Product information only processed when user initiates action
+- Full privacy policy available in extension
 
-## Architecture
+## 📊 Performance
 
-### Content Script → Background Script Communication
+### Caching Strategy
 
-1. **Content Script** (`content-scripts/amazon.ts`):
-   - Runs on Amazon product pages
-   - Extracts product title, subtitle, ASIN from DOM
-   - Sends extracted data to background script via `chrome.runtime.sendMessage`
+- **Local Cache**: `chrome.storage.local` with 24-hour TTL
+- **URL-based Invalidation**: Cache keyed by product title + URL
+- **State Persistence**: Last search results saved per page URL
+- **Duplicate Prevention**: Skips API calls if same page detected
 
-2. **Background Script** (`background/youtube.ts`):
-   - Receives product info from content script
-   - Normalizes title using `normalizeAmazonTitleToSearch`
-   - Generates search query variants
-   - Queries YouTube Data API v3
-   - Caches results in `chrome.storage.local`
-   - Returns results to popup
+### API Quota Management
 
-3. **Popup UI** (`ui/Popup.tsx`):
-   - React component that orchestrates the search flow
-   - Displays loading states, errors, and results
-   - Handles API key input and storage
+- **YouTube API**: ~106 units per search (100 for search + 6 for stats)
+- **Caching**: Reduces repeated searches to 0 API calls
+- **Backend Fallback**: User's personal keys used if backend quota exceeded
+- **Error Handling**: Graceful degradation with clear error messages
 
-### Title Normalization Logic
+## 🧪 Code Quality
 
-The `normalizeAmazonTitleToSearch` function implements:
+### TypeScript
 
-1. **Text Cleaning:**
-   - Decodes HTML entities
-   - Normalizes separators (—, |, :, etc.)
-   - Removes brand/vendor prefixes/suffixes
+- Strict mode enabled
+- Shared type definitions in `shared/types.ts`
+- Type-safe message passing between components
+- No `any` types (except for third-party API responses)
 
-2. **Marketing Word Removal:**
-   - Removes words like "New", "Latest", "2024", "With", "Includes"
-   - Preserves model numbers, sizes, capacities, generations
+### Code Organization
 
-3. **Parenthetical Handling:**
-   - Removes marketing parentheticals: "(Updated)", "(New)"
-   - Preserves essential identifiers: "(64GB)", "(5th Gen)", "(85 inch)"
+- **Separation of Concerns**: Background scripts, content scripts, and UI are separate
+- **Shared Utilities**: Common logic extracted to `shared/` directory
+- **Type Safety**: Interfaces defined for all data structures
+- **Error Handling**: Try-catch blocks with meaningful error messages
 
-4. **Subtitle Merging:**
-   - Only appends subtitle if it adds high-value tokens (model numbers, specs, tech terms)
+### Testing
 
-5. **Query Generation:**
-   - Creates multiple query variants: "product review", "product unboxing", "brand model review"
-   - Tries queries in order until results are found
+- Unit tests for core normalization logic
+- Test coverage for edge cases
+- Vitest for fast test execution
 
-## Testing
+## 🔄 Data Flow
 
-### Unit Tests
+### Amazon → YouTube Search
 
-Run the test suite:
-```bash
-npm test
+```
+User clicks extension
+    ↓
+Popup opens → Detects Amazon page
+    ↓
+Content script extracts product info
+    ↓
+Background script normalizes title
+    ↓
+Backend API optimizes query (optional)
+    ↓
+Backend searches YouTube API
+    ↓
+Results cached & displayed
 ```
 
-Tests cover:
-- Title normalization with various Amazon title formats
-- Subtitle merging logic
-- Query generation
-- Edge cases (empty titles, long titles, etc.)
+### YouTube → Amazon Search
 
-### Manual Testing
+```
+User opens popup on YouTube page
+    ↓
+Content script extracts video context
+    ↓
+Backend API calls Groq LLM
+    ↓
+LLM extracts product names
+    ↓
+Multiple products displayed
+    ↓
+User selects product
+    ↓
+Amazon search opened in new tab
+```
 
-1. **Test on various Amazon product pages:**
-   - Electronics: `https://www.amazon.com/dp/B08C1W5N87` (Echo Dot)
-   - Headphones: `https://www.amazon.com/dp/B0BDHB9Y8H` (AirPods Pro)
-   - TVs: `https://www.amazon.com/dp/B0B7BP6CJN` (Samsung TV)
+## 🚢 Deployment
 
-2. **Verify caching:**
-   - Search for a product
-   - Search again immediately (should use cache)
-   - Check browser DevTools → Network tab (should see no YouTube API calls on second search)
+### Chrome Web Store Submission
 
-3. **Test error handling:**
-   - Use invalid API key (should show error message)
-   - Test on non-Amazon pages (should show appropriate error)
+1. **Build production bundle**: `npm run build`
+2. **Create ZIP**: Contents of `.output/chrome-mv3/` directory
+3. **Submit**: Upload ZIP to Chrome Web Store Developer Dashboard
 
-## Troubleshooting
+**ZIP file location**: `ScoutFox-extension.zip` (184 KB)
 
-### Extension not loading
-- Ensure you're loading from `.output/chrome-mv3` directory
-- Check browser console for errors
-- Verify all dependencies are installed: `npm install`
+### Backend Deployment
 
-### No results found
-- Verify API key is set correctly
-- Check YouTube API quota in Google Cloud Console
-- Try refreshing the search (bypasses cache)
-- Verify you're on an Amazon product page
+Backend is deployed separately on Vercel:
+- Repository: Separate repo for backend proxy
+- Environment Variables: `GROQ_API_KEY`, `YOUTUBE_API_KEY`
+- Endpoints: `/api/extract-product`, `/api/search-youtube`
 
-### API errors (403/429)
-- **403 Forbidden**: API key may be invalid or restricted
-- **429 Too Many Requests**: Quota exceeded, wait or upgrade quota
-- Check error message in popup for details
+## 📝 Key Implementation Details
 
-## Future Enhancements
+### Title Normalization
 
-- [ ] Add LLM-based query paraphrasing for improved results (OpenAI/local)
-- [ ] Support for multiple Amazon locales (.co.uk, .de, etc.)
-- [ ] Filter results by video duration, upload date
+The `normalizeAmazonTitleToSearch` function implements sophisticated text processing:
+
+1. **HTML Entity Decoding**: Converts `&amp;` → `&`, etc.
+2. **Separator Normalization**: Standardizes `—`, `|`, `:`, etc.
+3. **Marketing Word Removal**: Filters out "New", "Latest", "2024", etc.
+4. **Model Number Preservation**: Keeps essential identifiers (generations, sizes, storage)
+5. **Subtitle Intelligence**: Only merges subtitle if it adds value (model numbers, specs)
+6. **Query Variants**: Generates multiple search queries for better results
+
+### State Management
+
+- **React State**: Local component state for UI
+- **Chrome Storage**: Persistent state across sessions
+- **URL-based Keys**: Cache keys include page URL to prevent cross-page contamination
+- **Automatic Restoration**: State restored when popup reopens on same page
+
+### Error Handling
+
+- **Network Errors**: Retry logic with exponential backoff
+- **API Errors**: User-friendly error messages
+- **Timeout Handling**: 15-25 second timeouts with fallback
+- **Service Worker Inactivity**: Direct fetch from popup as fallback
+
+## 🎨 UI/UX
+
+- **Modern Design**: Clean, minimal interface with orange theme
+- **Responsive**: Works well in extension popup constraints
+- **Loading States**: Clear feedback during API calls
+- **Error Messages**: Helpful, actionable error messages
+- **Keyboard Shortcuts**: Ctrl+M to open popup
+- **Accessibility**: Semantic HTML, proper ARIA labels
+
+## 📚 Technologies & Patterns
+
+- **WXT Framework**: Modern Chrome extension development
+- **React Hooks**: `useState`, `useEffect` for state management
+- **TypeScript**: Type safety throughout
+- **Tailwind CSS**: Utility-first styling
+- **Vite**: Fast build tool with HMR
+- **Vitest**: Fast unit testing
+- **Serverless Functions**: Vercel for backend API
+
+## 🔮 Future Enhancements
+
+- [ ] Support for more Amazon locales
+- [ ] Video filtering (duration, date, channel)
 - [ ] Bookmark/save favorite reviews
-- [ ] Analytics dashboard for API usage
-- [ ] Backend proxy implementation example
+- [ ] Analytics dashboard
+- [ ] Offline mode with service worker caching
+- [ ] Browser extension for Firefox/Edge
 
-## License
+## 📄 License
 
 MIT
 
-## Contributing
+## 👤 Author
 
-Contributions welcome! Please open an issue or submit a pull request.
+Built as a portfolio project demonstrating:
+- Chrome Extension development (MV3)
+- TypeScript expertise
+- React UI development
+- Serverless architecture
+- API integration
+- Security best practices
+- Production-ready code quality
+
+---
+
+**Note**: This extension requires a backend API proxy for production use. The backend repository is separate and handles API key management and LLM processing.
