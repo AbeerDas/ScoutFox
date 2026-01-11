@@ -73,7 +73,9 @@ export default defineConfig({
       'https://yt-amazon-backend-proxy.vercel.app/*',
     ],
     content_security_policy: {
-      extension_pages: "script-src 'self'; object-src 'self'; connect-src 'self' https://yt-amazon-backend-proxy.vercel.app https://api.groq.com https://www.googleapis.com;",
+      extension_pages: process.env.NODE_ENV === 'development'
+        ? "script-src 'self' http://localhost:3000; object-src 'self'; connect-src 'self' http://localhost:3000 ws://localhost:3000 https://yt-amazon-backend-proxy.vercel.app https://api.groq.com https://www.googleapis.com;"
+        : "script-src 'self'; object-src 'self'; connect-src 'self' https://yt-amazon-backend-proxy.vercel.app https://api.groq.com https://www.googleapis.com;",
     },
   },
   // Content scripts are automatically detected from entrypoints/content.ts

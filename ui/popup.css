@@ -416,6 +416,16 @@
   display: none;
 }
 
+.product-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 8px 0;
+  text-align: center;
+}
+
 .product-detected {
   padding: 16px 20px;
   margin: 0;
@@ -450,6 +460,62 @@
   text-align: center;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.unsupported-page {
+  text-align: center;
+  padding: 32px 24px;
+  color: var(--text-secondary);
+}
+
+.unsupported-message {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.products-list {
+  padding: 20px;
+  text-align: center;
+}
+
+.products-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.products-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.product-button {
+  width: 100%;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.product-button:hover {
+  border-color: var(--orange-primary);
+  background: var(--orange-pastel);
+}
+
+.product-button.selected {
+  border-color: var(--orange-primary);
+  background: var(--orange-primary);
+  color: white;
 }
 
 /* Error Message */

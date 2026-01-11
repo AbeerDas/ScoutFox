@@ -1,32 +1,34 @@
 /**
  * LLM-powered product extraction from YouTube context
  * Calls Vercel backend API which handles the actual LLM calls
+ * UPDATED: Now extracts multiple products
  */
 
-import type { YouTubePageContext, LLMExtractionResult } from './types';
+import type { YouTubePageContext, LLMExtractionResult, MultipleProductExtractionResult } from './types';
 import { VERCEL_API_URL } from './config';
 
 const REQUEST_TIMEOUT = 10000;
 
 /**
- * Extract product name from YouTube context using LLM via Vercel backend
- * Falls back to regex normalization if LLM fails or confidence is low
+ * Extract multiple product names from YouTube context using LLM via Vercel backend
+ * Always uses LLM API - no fallback to regex
+ * Returns array of products sorted by confidence
  */
-export async function extractProductWithLLM(
+export async function extractProductsWithLLM(
   context: YouTubePageContext
-): Promise<LLMExtractionResult> {
+): Promise<MultipleProductExtractionResult> {
+  if (!VERCEL_API_URL || VERCEL_API_URL.includes('your-project-name')) {
+    throw new Error('Backend API URL not configured');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+  const apiUrl = `${VERCEL_API_URL}/api/extract-product`;
+  console.log('[LLM] Calling extract-product endpoint:', apiUrl);
+  console.log('[LLM] Context:', { videoTitle: context.videoTitle, hasRawText: !!context.rawTextBlob });
+
   try {
-    if (!VERCEL_API_URL || VERCEL_API_URL.includes('your-project-name')) {
-      throw new Error('Backend API URL not configured');
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-    const apiUrl = `${VERCEL_API_URL}/api/extract-product`;
-    console.log('[LLM] Calling extract-product endpoint:', apiUrl);
-    console.log('[LLM] Context:', { videoTitle: context.videoTitle, hasRawText: !!context.rawTextBlob });
-
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -39,30 +41,70 @@ export async function extractProductWithLLM(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`LLM API returned ${response.status}`);
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`LLM API returned ${response.status}: ${errorText.substring(0, 100)}`);
     }
 
-    const result: LLMExtractionResult = await response.json();
+    const result: any = await response.json();
 
-    // Validate response structure
-    if (typeof result.confidence !== 'number' || result.confidence < 0 || result.confidence > 1) {
-      throw new Error('Invalid confidence score from LLM');
+    // Handle both old format (single product) and new format (multiple products)
+    let products: Array<{ productName: string; confidence: number; rationale?: string }> = [];
+    
+    if (result.products && Array.isArray(result.products)) {
+      // New format: multiple products
+      products = result.products;
+    } else if (result.productName && typeof result.confidence === 'number') {
+      // Old format: single product - convert to array format
+      console.warn('[LLM] Backend returned old format, converting to new format');
+      products = [{
+        productName: result.productName,
+        confidence: result.confidence,
+        rationale: result.rationale,
+      }];
+    } else {
+      throw new Error('Invalid response structure from LLM - expected products array or productName');
     }
 
-    // If confidence is high enough, return it
-    if (result.confidence >= 0.7 && result.productName) {
-      return result;
-    }
+    // Filter products with confidence >= 0.5
+    const validProducts = products.filter(p => p.confidence >= 0.5 && p.productName);
 
-    // Low confidence - will fall back to regex
     return {
-      productName: null,
-      confidence: result.confidence,
-      rationale: result.rationale || 'Low confidence from LLM',
+      products: validProducts,
     };
   } catch (error) {
-    // Network error, timeout, or invalid response - fall back to regex
-    console.debug('LLM extraction failed, using fallback:', error);
+    clearTimeout(timeoutId);
+    // Re-throw error so caller can handle it properly
+    throw error;
+  }
+}
+
+/**
+ * Extract single product name from YouTube context using LLM via Vercel backend
+ * Always uses LLM API - no fallback
+ * @deprecated Use extractProductsWithLLM for multiple products
+ */
+export async function extractProductWithLLM(
+  context: YouTubePageContext
+): Promise<LLMExtractionResult> {
+  try {
+    const result = await extractProductsWithLLM(context);
+    
+    // Return the highest confidence product for backward compatibility
+    if (result.products.length > 0) {
+      const topProduct = result.products[0];
+      return {
+        productName: topProduct.productName,
+        confidence: topProduct.confidence,
+        rationale: topProduct.rationale,
+      };
+    }
+    
+    return {
+      productName: null,
+      confidence: 0,
+      rationale: 'No products found',
+    };
+  } catch (error) {
     return {
       productName: null,
       confidence: 0,

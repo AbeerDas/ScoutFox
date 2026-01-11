@@ -47,3 +47,11 @@ export interface LLMExtractionResult {
   confidence: number;
   rationale?: string;
 }
+
+export interface MultipleProductExtractionResult {
+  products: Array<{
+    productName: string;
+    confidence: number;
+    rationale?: string;
+  }>;
+}

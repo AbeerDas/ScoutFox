@@ -1,8 +1,3 @@
-/**
- * Main popup UI component for displaying YouTube review results
- * Redesigned with animations, orange theme, and Material icons
- */
-
 import React, { useState, useEffect } from 'react';
 import type { VideoResult, AmazonProductInfo, YouTubePageContext } from '../shared/types';
 import { formatCount } from '../shared/utils';
@@ -30,8 +25,10 @@ export default function Popup() {
   const [sortBy, setSortBy] = useState<'likes' | 'views'>('views');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [isYouTubePage, setIsYouTubePage] = useState(false);
-  const [detectedProduct, setDetectedProduct] = useState<string | null>(null);
+  const [detectedProducts, setDetectedProducts] = useState<Array<{ productName: string; confidence: number }>>([]);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [detectingProduct, setDetectingProduct] = useState(false);
+  const [isUnsupportedPage, setIsUnsupportedPage] = useState(false);
 
   useEffect(() => {
     const checkBackendStatus = async () => {
@@ -74,18 +71,16 @@ export default function Popup() {
         setUseAI(data.useAI);
       }
       
-      // Restore previous state if available (only for Amazon pages)
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const isYouTube = tab.url && (tab.url.toLowerCase().includes('youtube.com/watch') || tab.url.toLowerCase().includes('youtu.be/'));
       
-      if (!isYouTube && data.popupState) {
+      if (!isYouTube && data.popupState && tab.url) {
         try {
           const savedState = JSON.parse(data.popupState);
-          if (savedState.results && savedState.results.length > 0) {
+          if (savedState.results && savedState.results.length > 0 && savedState.lastUrl === tab.url) {
             setState(savedState);
           }
         } catch (e) {
-          // Ignore parse errors
         }
       }
     })();
@@ -93,7 +88,10 @@ export default function Popup() {
 
   useEffect(() => {
     if (state.results.length > 0 || state.productInfo) {
-      chrome.storage.local.set({ popupState: JSON.stringify(state) });
+      chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+        const stateWithUrl = { ...state, lastUrl: tab.url };
+        chrome.storage.local.set({ popupState: JSON.stringify(stateWithUrl) });
+      });
     }
   }, [state]);
 
@@ -114,8 +112,8 @@ export default function Popup() {
               productInfo: null,
             });
             chrome.storage.local.remove('popupState');
+            setIsUnsupportedPage(false);
             
-            // Auto-detect product on YouTube pages
             setDetectingProduct(true);
             try {
               let context: YouTubePageContext | null = null;
@@ -145,17 +143,11 @@ export default function Popup() {
                 const amazonResponse = await chrome.runtime.sendMessage({
                   type: 'SEARCH_AMAZON_FROM_YOUTUBE',
                   context,
-                }) as { success: boolean; url?: string; error?: string; productName?: string };
+                }) as { success: boolean; url?: string; error?: string; products?: Array<{ productName: string; confidence: number }> };
                 
-                if (amazonResponse.success && amazonResponse.productName) {
-                  setDetectedProduct(amazonResponse.productName);
-                } else if (amazonResponse.success) {
-                  // Extract product name from URL if not provided
-                  const url = amazonResponse.url || '';
-                  const match = url.match(/k=([^&]+)/);
-                  if (match) {
-                    setDetectedProduct(decodeURIComponent(match[1]));
-                  }
+                if (amazonResponse.success && amazonResponse.products && amazonResponse.products.length > 0) {
+                  setDetectedProducts(amazonResponse.products);
+                  setSelectedProduct(amazonResponse.products[0].productName);
                 }
               }
             } catch (error) {
@@ -164,19 +156,39 @@ export default function Popup() {
               setDetectingProduct(false);
             }
           } else {
-            setDetectedProduct(null);
+            setDetectedProducts([]);
+            setSelectedProduct(null);
             
-            // Auto-search on Amazon pages when extension opens
             const amazonDomains = ['amazon.com', 'amazon.ca', 'amazon.co.uk', 'amazon.de', 'amazon.fr', 
               'amazon.it', 'amazon.es', 'amazon.co.jp', 'amazon.in', 'amazon.com.au', 
               'amazon.com.br', 'amazon.com.mx', 'amazon.nl', 'amazon.se', 'amazon.pl',
               'amazon.sg', 'amazon.ae', 'amazon.sa', 'amazon.tr'];
             
             if (tab.url && amazonDomains.some(domain => tab.url!.toLowerCase().includes(domain))) {
-              // Auto-trigger search on Amazon pages
-              setTimeout(() => {
-                handleSearch(false);
-              }, 300);
+              setIsUnsupportedPage(false);
+              const data = await chrome.storage.local.get(['popupState']);
+              if (data.popupState) {
+                try {
+                  const savedState = JSON.parse(data.popupState);
+                  if (savedState.lastUrl === tab.url && savedState.results && savedState.results.length > 0) {
+                    setState(savedState);
+                  } else {
+                    setTimeout(() => {
+                      handleSearch(false);
+                    }, 300);
+                  }
+                } catch (e) {
+                  setTimeout(() => {
+                    handleSearch(false);
+                  }, 300);
+                }
+              } else {
+                setTimeout(() => {
+                  handleSearch(false);
+                }, 300);
+              }
+            } else {
+              setIsUnsupportedPage(true);
             }
           }
         }
@@ -185,7 +197,6 @@ export default function Popup() {
       }
     };
     checkPageTypeAndDetect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = async (bypassCache: boolean = false) => {
@@ -242,15 +253,25 @@ export default function Popup() {
             throw new Error('Could not extract YouTube context. The page may not be fully loaded.');
           }
           
+          if (selectedProduct) {
+            const encoded = encodeURIComponent(selectedProduct);
+            const amazonURL = `https://www.amazon.com/s?k=${encoded}`;
+            chrome.tabs.create({ url: amazonURL });
+            setState(prev => ({ ...prev, loading: false }));
+            return;
+          }
+          
           const amazonResponse = await chrome.runtime.sendMessage({
             type: 'SEARCH_AMAZON_FROM_YOUTUBE',
             context,
-          }) as { success: boolean; url?: string; error?: string; productName?: string };
+          }) as { success: boolean; url?: string; error?: string; products?: Array<{ productName: string; confidence: number }> };
           
-          if (amazonResponse.success && amazonResponse.url) {
-            if (amazonResponse.productName) {
-              setDetectedProduct(amazonResponse.productName);
-            }
+          if (amazonResponse.success && amazonResponse.products && amazonResponse.products.length > 0) {
+            setDetectedProducts(amazonResponse.products);
+            setSelectedProduct(amazonResponse.products[0].productName);
+            setState(prev => ({ ...prev, loading: false }));
+            return;
+          } else if (amazonResponse.success && amazonResponse.url) {
             chrome.tabs.create({ url: amazonResponse.url });
             setState(prev => ({ ...prev, loading: false }));
             return;
@@ -320,7 +341,6 @@ export default function Popup() {
 
       setState(prev => ({ ...prev, productInfo }));
 
-      // Try calling backend directly from popup (bypass service worker if it's not responding)
       try {
         const { VERCEL_API_URL } = await import('../shared/config');
         
@@ -367,7 +387,6 @@ export default function Popup() {
         console.warn('[Popup] Could not import config, trying service worker:', configError);
       }
 
-      // Fallback: Use service worker (if it's active)
       console.log('[Popup] Attempting to use service worker...');
       const searchPromise = chrome.runtime.sendMessage({
         action: 'searchYouTubeForProduct',
@@ -380,7 +399,7 @@ export default function Popup() {
       const timeoutPromise = new Promise<{ success: boolean; error: string }>((resolve) => {
         setTimeout(() => {
           resolve({ success: false, error: 'Request timed out. Please reload the extension and try again.' });
-        }, 15000); // 15 second timeout
+        }, 15000);
       });
 
       const searchResponse = await Promise.race([searchPromise, timeoutPromise]);
@@ -431,7 +450,6 @@ export default function Popup() {
 
   return (
     <div className={`popup-container ${state.results.length > 0 ? 'has-results' : ''}`}>
-      {/* Header with logo and settings */}
       <div className="popup-header">
         <div className="header-left">
           <div 
@@ -488,12 +506,10 @@ export default function Popup() {
         </div>
       </div>
 
-      {/* Settings Panel */}
       {showSettings && (
         <div className="settings-panel">
           <h2 className="settings-title">Settings</h2>
           
-          {/* Backend Status */}
           <div className="settings-section">
             <div className="backend-status">
               <span className="backend-status-label">ScoutFox Service:</span>
@@ -558,43 +574,75 @@ export default function Popup() {
         </div>
       )}
 
-      {/* Search Button */}
       {!showSettings && (
         <>
-          {isYouTubePage && detectedProduct && (
-            <div className="product-detected">
-              <p className="product-detected-label">Product detected:</p>
-              <p className="product-detected-name">{detectedProduct}</p>
+          {isUnsupportedPage && (
+            <div className="unsupported-page">
+              <p className="unsupported-message">Navigate to an Amazon product page to find YouTube reviews, or a YouTube video page to search for products on Amazon. You can also press Ctrl+M (Cmd+M on Mac) to open ScoutFox on any page.</p>
             </div>
           )}
 
           {isYouTubePage && detectingProduct && (
             <div className="product-detecting">
-              <p>Detecting product...</p>
+              <p>Detecting products...</p>
             </div>
           )}
 
-          <button
-            onClick={() => handleSearch(false)}
-            disabled={state.loading || detectingProduct}
-            className="btn-search"
-          >
-            {state.loading ? (
-              <span className="loading-spinner"></span>
-            ) : isYouTubePage ? (
+          {isYouTubePage && detectedProducts.length > 0 && (
+            <div className="products-list">
+              <p className="products-label">Select a product:</p>
+              <div className="products-buttons">
+                {detectedProducts.map((product, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedProduct(product.productName)}
+                    className={`product-button ${selectedProduct === product.productName ? 'selected' : ''}`}
+                  >
+                    {product.productName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isYouTubePage && detectedProducts.length > 0 && (
+            <button
+              onClick={() => {
+                if (selectedProduct) {
+                  const encoded = encodeURIComponent(selectedProduct);
+                  const amazonURL = `https://www.amazon.com/s?k=${encoded}`;
+                  chrome.tabs.create({ url: amazonURL });
+                }
+              }}
+              disabled={!selectedProduct}
+              className="btn-search"
+            >
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                Search product on Amazon
+                Search on Amazon
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
                 </svg>
               </span>
-            ) : (
-              'Search Reviews'
-            )}
-          </button>
+            </button>
+          )}
+
+          {!isYouTubePage && !isUnsupportedPage && (
+            <button
+              onClick={() => handleSearch(false)}
+              disabled={state.loading || detectingProduct}
+              className="btn-search"
+            >
+              {state.loading ? (
+                <span className="loading-spinner"></span>
+              ) : (
+                'Search Reviews'
+              )}
+            </button>
+          )}
 
           {!isYouTubePage && state.productInfo && (
             <div className="product-info">
+              <p className="product-label">Last Product detected:</p>
               <p className="product-title">{state.productInfo.title}</p>
               {state.productInfo.subtitle && (
                 <p className="product-subtitle">{state.productInfo.subtitle}</p>
