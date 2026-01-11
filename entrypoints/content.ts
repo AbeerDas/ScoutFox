@@ -6,7 +6,7 @@
 import { defineContentScript } from 'wxt/sandbox';
 import '../content-scripts/amazon';
 
-export default defineContentScript({
+const contentScript: ReturnType<typeof defineContentScript> = defineContentScript({
   // Scoped to product pages only for least-privilege compliance
   // Matches Amazon product page URL patterns: /dp/[ASIN], /gp/product/[ASIN]
   matches: [
@@ -50,6 +50,7 @@ export default defineContentScript({
     '*://*.amazon.tr/gp/product/*',
   ],
   main() {
-    // Content scripts are imported above and will run automatically
   },
 });
+
+export default contentScript;
